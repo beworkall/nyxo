@@ -3,6 +3,7 @@ package com.beworkall.nyxo.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,8 +16,10 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,7 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -104,6 +109,18 @@ fun AppMenu(vm: LauncherViewModel, app: AppEntry) {
                     close()
                 }
             }
+            val inStack = vm.stackOf(app)
+            if (inStack != null) {
+                MenuItem("Remove from stack “${inStack.name}”") {
+                    vm.removeFromStack(inStack.id, app.key)
+                    close()
+                }
+            } else {
+                MenuItem("Add to a stack…") {
+                    vm.stackPickerFor = app
+                    close()
+                }
+            }
             MenuItem(if (vm.isHidden(app)) "Unhide" else "Hide app") {
                 val wasHidden = vm.isHidden(app)
                 vm.toggleHidden(app)
@@ -138,6 +155,122 @@ private fun MenuItem(text: String, color: Color = Ink, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 22.dp, vertical = 14.dp),
+    )
+}
+
+/** Choose an existing stack or create a new one for [app]. */
+@Composable
+fun StackPicker(vm: LauncherViewModel, app: AppEntry) {
+    var name by remember { mutableStateOf("") }
+    val close = { vm.stackPickerFor = null }
+    Dialog(onDismissRequest = close) {
+        val shape = RoundedCornerShape(24.dp)
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(Panel)
+                .border(1.dp, Line, shape)
+                .padding(18.dp),
+        ) {
+            Text("Add ${app.label} to a stack", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Stacks group apps under one entry on your home screen.", color = Muted, fontSize = 13.sp)
+            Spacer(Modifier.height(10.dp))
+            for (s in vm.stacks) {
+                MenuItem("${s.name}  ·  ${s.keys.size}") {
+                    vm.addToStack(s.id, app)
+                    close()
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            NameField(name, { name = it }, "New stack name, e.g. Social")
+            ActionButton("Create stack", primary = true) {
+                vm.createStack(name, app)
+                close()
+            }
+        }
+    }
+}
+
+/** Rename a stack, take apps out of it, or delete it. */
+@Composable
+fun StackEditor(vm: LauncherViewModel, stackId: String) {
+    val stack = vm.stackById(stackId)
+    val close = { vm.editStackId = null }
+    if (stack == null) {
+        LaunchedEffect(stackId) { vm.editStackId = null }
+        return
+    }
+    var name by remember(stackId) { mutableStateOf(stack.name) }
+    val byKey = remember(vm.apps) { vm.apps.associateBy { it.key } }
+    Dialog(onDismissRequest = {
+        vm.renameStack(stackId, name)
+        close()
+    }) {
+        val shape = RoundedCornerShape(24.dp)
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(Panel)
+                .border(1.dp, Line, shape)
+                .padding(18.dp),
+        ) {
+            Text("Edit stack", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            NameField(name, { name = it }, "Stack name")
+            Spacer(Modifier.height(8.dp))
+            for (key in stack.keys) {
+                val app = byKey[key] ?: continue
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AppIconImage(app, 32.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text(app.label, color = Ink, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(
+                        "Remove",
+                        color = RiskHigh,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { vm.removeFromStack(stackId, key) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            ActionButton("Save", primary = true) {
+                vm.renameStack(stackId, name)
+                close()
+            }
+            ActionButton("Delete stack (keeps the apps)") { vm.deleteStack(stackId) }
+        }
+    }
+}
+
+@Composable
+fun NameField(value: String, onChange: (String) -> Unit, placeholder: String) {
+    BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        singleLine = true,
+        textStyle = TextStyle(color = Ink, fontSize = 16.sp),
+        cursorBrush = SolidColor(accent()),
+        modifier = Modifier.fillMaxWidth(),
+        decorationBox = { inner ->
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(PanelHi)
+                    .border(1.dp, Line, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+            ) {
+                if (value.isEmpty()) Text(placeholder, color = Faint, fontSize = 15.sp)
+                inner()
+            }
+        },
     )
 }
 

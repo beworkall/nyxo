@@ -32,7 +32,10 @@ call Nyxo could ever make. You can check it yourself in [`AndroidManifest.xml`](
 | 🌑 **AMOLED black** | Pure black by default, or show your wallpaper with an adjustable dim. Six accent colours. |
 | 🔴 **Privacy Radar** | Flags apps with an accessibility service, notification access, device admin, overlays, camera, mic, location, SMS or call log. Plain-language explanations and one tap to the right settings page. |
 | 🕵️ **Hidden helpers** | Shows apps that have powerful access but **no icon** on your home screen, the way stalkerware usually hides. |
-| 🏠 **Two home styles** | Icon grid with a dock, or a minimal text list. Switch any time. |
+| 👍 **Thumb alphabet** | A letter strip on the screen edge. Slide your thumb along it: the letters swell around your finger and that letter's apps pop out beside it. Slide onto one and let go. Works left- or right-handed. |
+| 🗂️ **Stacks** | Group apps (Social, Work, Games…) under one entry that opens in place. |
+| 🏠 **Two home styles** | One-handed list (default) or a classic icon grid with a dock. Switch any time. |
+| 🧭 **Guided setup** | First-run setup explains the privacy dots with your phone's real numbers and lets you choose to turn them on or not. |
 | 🔎 **Offline search** | Apps, contacts (optional), settings pages, a calculator (`15% of 2400`, `(3+4)*2^3`) and unit conversions (`10 km to mi`, `70 f to c`, `2 gb to mb`). |
 | 🔤 **A–Z scroller** | Jump through the app drawer by dragging along the letters. |
 | ✋ **Gestures** | Swipe up for apps, swipe down or double-tap for search, swipe left/right to open any app, long-press for settings. |

@@ -21,6 +21,27 @@ data class AppEntry(
     val component: ComponentName get() = ComponentName(pkg, cls)
 }
 
+/** Section letter used by the drawer scroller and the thumb alphabet. */
+fun letterOf(label: String): Char {
+    val c = label.firstOrNull { it.isLetterOrDigit() } ?: return '#'
+    return if (c.isLetter()) c.uppercaseChar() else '#'
+}
+
+const val STACK_PREFIX = "stack:"
+
+/** A named group of apps shown as one entry on the home screen. */
+data class AppStack(val id: String, val name: String, val keys: List<String>) {
+    fun encode(): String = (listOf(id, name.replace('\t', ' ').replace('\n', ' ')) + keys).joinToString("\t")
+
+    companion object {
+        fun decode(raw: String): AppStack? {
+            val parts = raw.split('\t')
+            if (parts.size < 2 || parts[0].isBlank()) return null
+            return AppStack(parts[0], parts[1], parts.drop(2).filter { it.isNotBlank() })
+        }
+    }
+}
+
 object AppRepository {
     /** Every app with a launcher icon, sorted A to Z. Nyxo itself is left out. */
     fun load(context: Context): List<AppEntry> {

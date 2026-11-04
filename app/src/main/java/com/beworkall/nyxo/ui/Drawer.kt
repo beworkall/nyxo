@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import com.beworkall.nyxo.LauncherViewModel
 import com.beworkall.nyxo.Screen
 import com.beworkall.nyxo.data.AppEntry
+import com.beworkall.nyxo.data.letterOf
 import com.beworkall.nyxo.search.Calculator
 import com.beworkall.nyxo.search.Contact
 import com.beworkall.nyxo.search.Search
@@ -97,11 +98,6 @@ private class PullToClose(private val onClose: () -> Unit) : NestedScrollConnect
         }
         return Offset.Zero
     }
-}
-
-private fun letterOf(label: String): Char {
-    val c = label.firstOrNull { it.isLetterOrDigit() } ?: return '#'
-    return if (c.isLetter()) c.uppercaseChar() else '#'
 }
 
 @Composable
@@ -195,7 +191,7 @@ private fun AppListing(vm: LauncherViewModel, apps: List<AppEntry>, pullToClose:
                     modifier = Modifier.fillMaxSize().nestedScroll(pullToClose),
                     contentPadding = PaddingValues(start = 14.dp, end = 4.dp, bottom = 28.dp),
                 ) {
-                    items(apps.size, key = { apps[it].key }) { i -> AppRow(vm, apps[i], showIcon = false) }
+                    items(apps.size, key = { apps[it].key }) { i -> AppRow(vm, apps[i]) }
                     if (hiddenCount > 0) item { HiddenAppsRow(vm, hiddenCount) }
                 }
             }

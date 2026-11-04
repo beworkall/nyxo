@@ -40,6 +40,13 @@ fun NyxoRoot(vm: LauncherViewModel) {
             if (menuApp != null) AppMenu(vm, menuApp)
             val detail = vm.radarDetail
             if (detail != null) RadarDetailDialog(vm, detail)
+            val pickFor = vm.stackPickerFor
+            if (pickFor != null) StackPicker(vm, pickFor)
+            val editId = vm.editStackId
+            if (editId != null) StackEditor(vm, editId)
+
+            // First-run setup sits above everything until it's finished.
+            SlidePanel(!prefs.onboarded.value) { Onboarding(vm) }
         }
     }
 }

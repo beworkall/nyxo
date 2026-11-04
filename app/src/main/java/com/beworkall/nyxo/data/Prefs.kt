@@ -46,7 +46,8 @@ class Prefs(context: Context) {
         { e, key, v -> e.putString(key, v.joinToString("\n")) })
 
     // Look
-    val gridLayout = bool("grid_layout", true)
+    val gridLayout = bool("grid_layout_v2", false) // false = one-handed list
+    val leftHanded = bool("left_handed", false)
     val columns = int("columns", 4)
     val showWallpaper = bool("show_wallpaper", false)
     val dim = float("dim", 0.55f)
@@ -69,4 +70,8 @@ class Prefs(context: Context) {
     val dock = list("dock")
     val hidden = list("hidden")
     val seeded = bool("seeded", false)
+    val stacks = list("stacks")
+
+    // First-run setup
+    val onboarded = bool("onboarded_v2", false)
 }

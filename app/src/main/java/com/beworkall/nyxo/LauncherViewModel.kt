@@ -13,8 +13,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.beworkall.nyxo.data.AppEntry
+import com.beworkall.nyxo.data.AppStack
 import com.beworkall.nyxo.data.AppRepository
 import com.beworkall.nyxo.data.Prefs
+import com.beworkall.nyxo.data.STACK_PREFIX
 import com.beworkall.nyxo.radar.PrivacyRadar
 import com.beworkall.nyxo.radar.RadarResult
 import com.beworkall.nyxo.system.Actions
@@ -47,6 +49,9 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     var menuApp by mutableStateOf<AppEntry?>(null)
     var radarDetail by mutableStateOf<RadarResult?>(null)
     var drawerFocusSearch by mutableStateOf(false)
+    var stackPickerFor by mutableStateOf<AppEntry?>(null)
+    var editStackId by mutableStateOf<String?>(null)
+    var openStackId by mutableStateOf<String?>(null)
 
     private var refreshJob: Job? = null
 
@@ -79,6 +84,9 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     // ---------------------------------------------------------------- navigation
 
     fun onHomePressed() {
+        stackPickerFor = null
+        editStackId = null
+        openStackId = null
         menuApp = null
         radarDetail = null
         screen = Screen.Home
@@ -86,6 +94,9 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun back() {
         when {
+            stackPickerFor != null -> stackPickerFor = null
+            editStackId != null -> editStackId = null
+            openStackId != null -> openStackId = null
             radarDetail != null -> radarDetail = null
             menuApp != null -> menuApp = null
             screen == Screen.Hidden -> screen = Screen.Drawer
@@ -104,6 +115,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             delay(350)
             menuApp = null
             radarDetail = null
+            openStackId = null
             if (screen != Screen.Settings) screen = Screen.Home
         }
     }
@@ -144,7 +156,75 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             prefs.hidden.value = prefs.hidden.value + app.key
             prefs.home.value = prefs.home.value - app.key
             prefs.dock.value = prefs.dock.value - app.key
+            saveStacks(stacks.map { it.copy(keys = it.keys - app.key) })
+            cleanEmptyStacks()
         }
+    }
+
+    // ---------------------------------------------------------------- stacks
+
+    val stacks: List<AppStack> get() = prefs.stacks.value.mapNotNull { AppStack.decode(it) }
+
+    fun stackById(id: String): AppStack? = stacks.firstOrNull { it.id == id }
+
+    fun stackOf(app: AppEntry): AppStack? = stacks.firstOrNull { app.key in it.keys }
+
+    private fun saveStacks(list: List<AppStack>) {
+        prefs.stacks.value = list.map { it.encode() }
+    }
+
+    fun createStack(name: String, app: AppEntry) {
+        val id = java.lang.Long.toString(System.currentTimeMillis(), 36)
+        val stack = AppStack(id, name.trim().ifEmpty { "Stack" }, listOf(app.key))
+        saveStacks(stacks.map { it.copy(keys = it.keys - app.key) }.filter { it.keys.isNotEmpty() } + stack)
+        val home = prefs.home.value
+        val index = home.indexOf(app.key)
+        prefs.home.value = if (index >= 0) {
+            home.toMutableList().also { it[index] = STACK_PREFIX + id }
+        } else {
+            home + (STACK_PREFIX + id)
+        }
+        prefs.dock.value = prefs.dock.value - app.key
+        cleanEmptyStacks()
+    }
+
+    fun addToStack(stackId: String, app: AppEntry) {
+        saveStacks(stacks.map { s ->
+            when {
+                s.id == stackId && app.key !in s.keys -> s.copy(keys = s.keys + app.key)
+                s.id != stackId -> s.copy(keys = s.keys - app.key)
+                else -> s
+            }
+        })
+        prefs.home.value = prefs.home.value - app.key
+        prefs.dock.value = prefs.dock.value - app.key
+        cleanEmptyStacks()
+    }
+
+    fun removeFromStack(stackId: String, key: String) {
+        saveStacks(stacks.map { if (it.id == stackId) it.copy(keys = it.keys - key) else it })
+        cleanEmptyStacks()
+    }
+
+    fun renameStack(stackId: String, name: String) {
+        val clean = name.trim()
+        if (clean.isEmpty()) return
+        saveStacks(stacks.map { if (it.id == stackId) it.copy(name = clean) else it })
+    }
+
+    fun deleteStack(stackId: String) {
+        saveStacks(stacks.filter { it.id != stackId })
+        prefs.home.value = prefs.home.value - (STACK_PREFIX + stackId)
+        if (editStackId == stackId) editStackId = null
+        if (openStackId == stackId) openStackId = null
+    }
+
+    /** Stacks with no apps left disappear, and so do their home entries. */
+    private fun cleanEmptyStacks() {
+        val empty = stacks.filter { it.keys.isEmpty() }.map { it.id }.toSet()
+        if (empty.isEmpty()) return
+        saveStacks(stacks.filter { it.id !in empty })
+        prefs.home.value = prefs.home.value.filter { k -> !(k.startsWith(STACK_PREFIX) && k.removePrefix(STACK_PREFIX) in empty) }
     }
 
     // ---------------------------------------------------------------- first run

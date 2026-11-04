@@ -71,9 +71,18 @@ fun SettingsScreen(vm: LauncherViewModel) {
             item {
                 ChoiceRow(
                     "Home style",
-                    listOf("grid" to "Icons + dock", "list" to "Text list"),
+                    listOf("list" to "One-handed", "grid" to "Icon grid"),
                     if (p.gridLayout.value) "grid" else "list",
                 ) { p.gridLayout.value = it == "grid" }
+            }
+            if (!p.gridLayout.value) {
+                item {
+                    ChoiceRow(
+                        "Letter strip side",
+                        listOf("right" to "Right hand", "left" to "Left hand"),
+                        if (p.leftHanded.value) "left" else "right",
+                    ) { p.leftHanded.value = it == "left" }
+                }
             }
             if (p.gridLayout.value) {
                 item {
@@ -158,6 +167,12 @@ fun SettingsScreen(vm: LauncherViewModel) {
             item {
                 SettingRow("Hidden apps", "${p.hidden.value.size} hidden. Long-press any app and choose Hide app.") {
                     if (activity != null) Actions.authenticate(activity, "Hidden apps") { vm.screen = Screen.Hidden }
+                }
+            }
+            item {
+                SettingRow("Replay setup", "Walk through the first-run setup and the privacy dots tutorial again") {
+                    p.onboarded.value = false
+                    vm.screen = Screen.Home
                 }
             }
             item {
