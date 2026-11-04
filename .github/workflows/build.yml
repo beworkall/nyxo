@@ -1,0 +1,92 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.NYXO_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Prepare signing key
+        if: env.KEYSTORE_B64 != ''
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/nyxo.jks"
+          echo "NYXO_KEYSTORE_PATH=$RUNNER_TEMP/nyxo.jks" >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        env:
+          NYXO_KEYSTORE_PASSWORD: ${{ secrets.NYXO_KEYSTORE_PASSWORD }}
+          NYXO_KEY_ALIAS: ${{ secrets.NYXO_KEY_ALIAS }}
+          NYXO_KEY_PASSWORD: ${{ secrets.NYXO_KEY_PASSWORD }}
+        run: gradle :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+
+      - name: Rename APK
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk out/Nyxo.apk
+          sha256sum out/Nyxo.apk | tee out/Nyxo.apk.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nyxo-apk
+          path: out/
+
+      - name: Publish latest build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          signed="debug key (add signing secrets for stable updates)"
+          if [ -n "$KEYSTORE_B64" ]; then signed="release key"; fi
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest out/Nyxo.apk out/Nyxo.apk.sha256 \
+            --target "$GITHUB_SHA" \
+            --title "Nyxo Launcher (latest build #${GITHUB_RUN_NUMBER})" \
+            --notes "Built from ${GITHUB_SHA::7}. Signed with: ${signed}. Install Nyxo.apk, then press Home and pick Nyxo." \
+            --latest
+
+      # Writes the build result to the ci-status branch so it can be read without opening Actions.
+      - name: Report build status
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          set +e
+          dir="$RUNNER_TEMP/status"
+          mkdir -p "$dir" && cd "$dir"
+          git init -q -b ci-status
+          {
+            echo "sha=$GITHUB_SHA"
+            echo "result=$RESULT"
+            echo "run=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "number=$GITHUB_RUN_NUMBER"
+          } > status.txt
+          log="$GITHUB_WORKSPACE/build.log"
+          if [ -f "$log" ]; then
+            grep -nE "^e: |^w: .*(Unresolved|deprecat)|error:|What went wrong|FAILURE|Exception" "$log" | head -150 > errors.txt
+            tail -250 "$log" > tail.txt
+          fi
+          git add -A
+          git -c user.name="nyxo-ci" -c user.email="ci@nyxo.local" commit -qm "ci ${GITHUB_SHA::7}: $RESULT"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-status

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nyxo</string>
+    <string name="lock_service_label">Nyxo lock helper</string>
+    <string name="lock_service_desc">Lets Nyxo lock your screen when you double-tap the home screen. It performs only the lock action. It does not read, store or send anything that is on your screen.</string>
+</resources>
