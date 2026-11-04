@@ -87,7 +87,7 @@ fun NyxoClock(vm: LauncherViewModel) {
     val minute = now / 60_000L
     val date = remember(minute) { SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date(now)) }
     val quiet = remember { MutableInteractionSource() }
-    val openAlarms = { Actions.alarms(context) }
+    val openAlarms: () -> Unit = { Actions.alarms(context) }
     val accent = accent()
 
     Column {
@@ -229,4 +229,4 @@ fun fontFamilyOf(id: String): FontFamily = when (id) {
     else -> FontFamily.Default
 }
 
-val LocalNyxoFont = androidx.compose.runtime.staticCompositionLocalOf { FontFamily.Default }
+val LocalNyxoFont = androidx.compose.runtime.staticCompositionLocalOf<FontFamily> { FontFamily.Default }
