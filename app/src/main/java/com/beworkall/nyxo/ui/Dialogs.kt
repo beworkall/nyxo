@@ -58,9 +58,7 @@ fun AppMenu(vm: LauncherViewModel, app: AppEntry) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(shape)
-                .background(Panel)
-                .border(1.dp, Line, shape)
+                .nyxoSurface(shape)
                 .padding(vertical = 14.dp),
         ) {
             Row(Modifier.padding(horizontal = 18.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -332,7 +330,7 @@ fun HiddenScreen(vm: LauncherViewModel) {
     val byKey = remember(vm.apps) { vm.apps.associateBy { it.key } }
     val hidden = vm.prefs.hidden.value.mapNotNull { byKey[it] }.sortedBy { it.label.lowercase() }
     Column(Modifier.fillMaxSize().systemBarsPadding()) {
-        Header("Hidden apps", "Long-press an app to unhide it") { vm.screen = Screen.Drawer }
+        Header("Hidden apps", "Long-press an app to unhide it") { vm.back() }
         if (hidden.isEmpty()) {
             Text(
                 "Nothing hidden yet. Long-press any app and choose Hide app.",

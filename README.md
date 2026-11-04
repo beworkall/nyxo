@@ -29,8 +29,14 @@ call Nyxo could ever make. You can check it yourself in [`AndroidManifest.xml`](
 
 | | |
 |---|---|
-| 🌑 **AMOLED black** | Pure black by default, or show your wallpaper with an adjustable dim. Six accent colours. |
+| 🎨 **Theme packs** | Pure AMOLED plus six original wallpapers (Midnight City, Crimson Ronin, Golden Moon, Summit, Bare Branches, Dusk Street), each paired with an accent and a panel style. Or use your own photo. |
+| 🧊 **Glass, hard glass, water** | Panels blur the wallpaper behind them. Hard glass has crisp bright edges, water ripples where you touch, and glass catches the light as you tilt the phone. |
+| 🔊 **Sounds & motion** | Soft taps, glass chimes and water drops, springy panels and apps that open from their icon. Silent on vibrate or mute. |
+| 🧩 **Widgets** | Any app's widgets, plus Nyxo's own: battery, media volume, privacy score and a quick note. |
+| ⚙️ **Separate settings app** | **Nyxo Settings** has its own icon, so the home screen stays clean. It also has a **Switch home app** button to go back to One UI Home any time. |
 | 🔴 **Privacy Radar** | Flags apps with an accessibility service, notification access, device admin, overlays, camera, mic, location, SMS or call log. Plain-language explanations and one tap to the right settings page. |
+| 🆕 **Change alerts** | A NEW badge when an app gains powerful access, a card for every newly installed app (Review / Keep / Remove), and a warning for apps that didn't come from an app store. |
+| 💯 **Privacy score** | One number for the whole phone, with the apps to fix first. |
 | 🕵️ **Hidden helpers** | Shows apps that have powerful access but **no icon** on your home screen, the way stalkerware usually hides. |
 | 👍 **Thumb alphabet** | A letter strip on the screen edge. Slide your thumb along it: the letters swell around your finger and that letter's apps pop out beside it. Slide onto one and let go. Works left- or right-handed. |
 | 🗂️ **Stacks** | Group apps (Social, Work, Games…) under one entry that opens in place. |
@@ -38,7 +44,7 @@ call Nyxo could ever make. You can check it yourself in [`AndroidManifest.xml`](
 | 🧭 **Guided setup** | First-run setup explains the privacy dots with your phone's real numbers and lets you choose to turn them on or not. |
 | 🔎 **Offline search** | Apps, contacts (optional), settings pages, a calculator (`15% of 2400`, `(3+4)*2^3`) and unit conversions (`10 km to mi`, `70 f to c`, `2 gb to mb`). |
 | 🔤 **A–Z scroller** | Jump through the app drawer by dragging along the letters. |
-| ✋ **Gestures** | Swipe up for apps, swipe down or double-tap for search, swipe left/right to open any app, long-press for settings. |
+| ✋ **Gestures** | Swipe up for apps, swipe down or double-tap for search, swipe left/right to open any app, long-press for Nyxo Settings. |
 | 🔒 **Hidden apps** | Hide any app from the drawer; the hidden list opens only with your fingerprint, face or screen lock. |
 | 🚫 **No tracking** | No internet, no ads, no analytics, no accounts. |
 
@@ -47,6 +53,7 @@ call Nyxo could ever make. You can check it yourself in [`AndroidManifest.xml`](
 1. Open [**Releases**](https://github.com/beworkall/nyxo/releases/latest) and download `Nyxo.apk`.
 2. Open it on your phone and allow installs from your browser or file manager if Android asks.
 3. Press **Home** and choose **Nyxo**, or open Nyxo and tap **Make Nyxo your home screen**.
+4. Want your old home screen back? Open **Nyxo Settings → Switch home app**.
 
 Every push to `main` builds a new APK and publishes it to the latest release automatically.
 
@@ -66,9 +73,14 @@ That's the full list. No internet, no accessibility service, no device admin, no
 | 🔴 | **Full access**: accessibility service on, notification access, or device administrator |
 | 🟡 | **Sensitive access**: camera, microphone, location, SMS, call log, or drawing over other apps |
 | none | None of the above |
+| NEW | That app's access changed since you last looked |
+
+Apps installed from outside an app store (not Play, Galaxy Store, F-Droid and similar) are also flagged.
 
 The Radar reads permission state on the phone with standard Android APIs. It doesn't send, store or upload anything.
 It also can't see everything: a one-time screen-recording session, for example, isn't a permission an app keeps.
+
+Nyxo also sets nothing as your phone wallpaper by itself: **Use as phone wallpaper too** hands the image to Android's own wallpaper screen.
 
 ## Build it yourself
 
@@ -94,6 +106,10 @@ app/src/main/java/com/beworkall/nyxo/
 ├── system/                  launching, settings shortcuts, biometric prompt
 └── ui/                      Compose screens
 ```
+
+## Credits
+
+Wallpapers created by BEwork with Google Gemini. Sounds are synthesized for Nyxo.
 
 ## License
 

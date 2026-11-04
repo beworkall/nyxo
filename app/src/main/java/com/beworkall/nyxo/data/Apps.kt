@@ -43,7 +43,7 @@ data class AppStack(val id: String, val name: String, val keys: List<String>) {
 }
 
 object AppRepository {
-    /** Every app with a launcher icon, sorted A to Z. Nyxo itself is left out. */
+    /** Every app with a launcher icon, sorted A to Z. */
     fun load(context: Context): List<AppEntry> {
         val pm = context.packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -51,7 +51,8 @@ object AppRepository {
         val infos = pm.queryIntentActivities(intent, 0)
         return infos.mapNotNull { ri ->
             val ai = ri.activityInfo ?: return@mapNotNull null
-            if (ai.packageName == context.packageName) return@mapNotNull null
+            // Hide the home screen itself, but keep the separate Nyxo Settings app in the list.
+            if (ai.packageName == context.packageName && ai.name.endsWith(".MainActivity")) return@mapNotNull null
             val flags = ai.applicationInfo?.flags ?: 0
             val label = ri.loadLabel(pm).toString().trim().ifEmpty { ai.packageName }
             AppEntry(label, ai.packageName, ai.name, (flags and ApplicationInfo.FLAG_SYSTEM) != 0)

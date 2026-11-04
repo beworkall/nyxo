@@ -45,6 +45,10 @@ import androidx.compose.ui.unit.sp
 import com.beworkall.nyxo.LauncherViewModel
 import com.beworkall.nyxo.data.AppEntry
 import com.beworkall.nyxo.data.letterOf
+import com.beworkall.nyxo.system.Sfx
+import com.beworkall.nyxo.system.Sound
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.max
@@ -117,6 +121,7 @@ fun ThumbAlphabet(
                 if (idx != letterIndex) {
                     letterIndex = idx
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    Sound.play(Sfx.TICK)
                 }
             } else {
                 selecting = true
@@ -149,6 +154,19 @@ fun ThumbAlphabet(
 
         content()
 
+        // The swell follows your thumb on a spring, so it feels physical.
+        val look = LocalLook.current
+        val springWave by animateFloatAsState(
+            targetValue = waveY,
+            animationSpec = if (look.motion) spring(dampingRatio = 0.6f, stiffness = 500f) else spring(stiffness = 100_000f),
+            label = "wave",
+        )
+        val swellAmount by animateFloatAsState(
+            targetValue = if (touching) 1f else 0f,
+            animationSpec = spring(dampingRatio = 0.55f, stiffness = 420f),
+            label = "swell",
+        )
+
         // ---- the letter strip
         Column(
             Modifier
@@ -175,8 +193,8 @@ fun ThumbAlphabet(
             val n = letters.size.coerceAtLeast(1)
             letters.forEachIndexed { i, c ->
                 val centerY = (i + 0.5f) * boxH / n
-                val d = (centerY - waveY) / sigma
-                val f = if (touching) exp(-(d * d)) else 0f
+                val d = (centerY - springWave) / sigma
+                val f = exp(-(d * d)) * swellAmount
                 val isCurrent = touching && i == letterIndex
                 Box(
                     Modifier
@@ -209,8 +227,7 @@ fun ThumbAlphabet(
                 Modifier
                     .offset { IntOffset(x.roundToInt(), top.roundToInt()) }
                     .width(with(density) { popupW.toDp() })
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Panel)
+                    .nyxoSurface(RoundedCornerShape(20.dp))
                     .border(1.dp, accentColor.copy(alpha = 0.35f), RoundedCornerShape(20.dp)),
             ) {
                 list.forEachIndexed { i, app ->

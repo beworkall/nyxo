@@ -76,6 +76,8 @@ import com.beworkall.nyxo.search.Contact
 import com.beworkall.nyxo.search.Search
 import com.beworkall.nyxo.search.UnitConverter
 import com.beworkall.nyxo.system.Actions
+import com.beworkall.nyxo.system.Sfx
+import com.beworkall.nyxo.system.Sound
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -108,7 +110,7 @@ fun DrawerScreen(vm: LauncherViewModel) {
     val keyboard = LocalSoftwareKeyboardController.current
     val hidden = prefs.hidden.value
     val visible = remember(vm.apps, hidden) { vm.apps.filter { it.key !in hidden } }
-    val pullToClose = remember { PullToClose { vm.screen = Screen.Home } }
+    val pullToClose = remember { PullToClose { vm.back() } }
 
     LaunchedEffect(Unit) {
         if (prefs.autoKeyboard.value || vm.drawerFocusSearch) {
@@ -123,7 +125,7 @@ fun DrawerScreen(vm: LauncherViewModel) {
             Modifier
                 .fillMaxWidth()
                 .pointerInput(Unit) {
-                    detectVerticalDragGestures { _, dragAmount -> if (dragAmount > 18f) vm.screen = Screen.Home }
+                    detectVerticalDragGestures { _, dragAmount -> if (dragAmount > 18f) vm.back() }
                 }
                 .padding(top = 10.dp, bottom = 8.dp),
             contentAlignment = Alignment.Center,
@@ -142,10 +144,6 @@ fun DrawerScreen(vm: LauncherViewModel) {
                 keyboard?.hide()
                 vm.screen = Screen.Radar
             }) { RadarGlyph(accent()) }
-            IconBtn({
-                keyboard?.hide()
-                vm.screen = Screen.Settings
-            }) { Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Muted) }
         }
         Spacer(Modifier.height(8.dp))
         if (query.isBlank()) {
@@ -214,7 +212,12 @@ private fun HiddenAppsRow(vm: LauncherViewModel, count: Int) {
             .padding(top = 16.dp, end = 8.dp)
             .clip(RoundedCornerShape(14.dp))
             .clickable {
-                if (activity != null) Actions.authenticate(activity, "Hidden apps") { vm.screen = Screen.Hidden }
+                if (activity != null) {
+                    Actions.authenticate(activity, "Hidden apps") {
+                        Sound.play(Sfx.UNLOCK)
+                        vm.screen = Screen.Hidden
+                    }
+                }
             }
             .padding(horizontal = 12.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

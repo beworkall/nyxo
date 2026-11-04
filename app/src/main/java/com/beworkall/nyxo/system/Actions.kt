@@ -1,11 +1,14 @@
 package com.beworkall.nyxo.system
 
 import android.app.Activity
+import android.app.ActivityOptions
 import android.app.KeyguardManager
 import android.app.SearchManager
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Rect
+import android.view.View
 import android.content.pm.PackageManager
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
@@ -15,8 +18,11 @@ import android.os.CancellationSignal
 import android.provider.AlarmClock
 import android.provider.Settings
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import com.beworkall.nyxo.data.AppEntry
+import com.beworkall.nyxo.SettingsActivity
 import com.beworkall.nyxo.radar.Fix
+import java.io.File
 
 object Actions {
 
@@ -37,14 +43,46 @@ object Actions {
         return ok
     }
 
-    fun launch(context: Context, app: AppEntry): Boolean = start(
-        context,
-        Intent(Intent.ACTION_MAIN)
+    /** Opens an app. With a source view and rect, the app zooms out of its icon. */
+    fun launch(context: Context, app: AppEntry, sourceView: View? = null, source: Rect? = null): Boolean {
+        val intent = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(app.component)
-            .addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED),
-        "${app.label} can't be opened",
-    )
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        if (sourceView != null && source != null && source.width() > 0) {
+            intent.sourceBounds = source
+            val options = ActivityOptions.makeClipRevealAnimation(
+                sourceView, source.left, source.top, source.width(), source.height(),
+            ).toBundle()
+            try {
+                context.startActivity(intent, options)
+                return true
+            } catch (e: Exception) {
+                // fall through to a plain launch
+            }
+        }
+        return start(context, intent, "${app.label} can't be opened")
+    }
+
+    /** Opens Android's home app picker, so you can go back to One UI Home any time. */
+    fun switchHomeApp(context: Context) {
+        if (tryStart(context, Intent(Settings.ACTION_HOME_SETTINGS))) return
+        start(context, Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+    }
+
+    fun openNyxoSettings(context: Context) {
+        start(context, Intent(context, SettingsActivity::class.java))
+    }
+
+    /** Hands a wallpaper file to the system "Set as wallpaper" screen. Needs no permission. */
+    fun setAsPhoneWallpaper(context: Context, file: File) {
+        val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
+        val intent = Intent(Intent.ACTION_ATTACH_DATA)
+            .setDataAndType(uri, "image/*")
+            .putExtra("mimeType", "image/*")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        start(context, Intent.createChooser(intent, "Set as wallpaper"), "No app can set wallpapers here")
+    }
 
     fun appInfo(context: Context, pkg: String): Boolean =
         start(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", pkg, null)))

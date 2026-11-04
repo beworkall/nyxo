@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AppOpsManager
 import android.app.admin.DevicePolicyManager
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -121,6 +122,20 @@ object PrivacyRadar {
         if (Manifest.permission.READ_CALL_LOG in granted) out.add(Finding(
             "Reads your call history", "It can see who you called and when.", false, Fix.APP))
 
+        val appFlags = info?.applicationInfo?.flags ?: 0
+        val preinstalled = (appFlags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0
+        if (info != null && !preinstalled) {
+            val installer = runCatching {
+                if (Build.VERSION.SDK_INT >= 30) pm.getInstallSourceInfo(pkg).installingPackageName
+                else pm.getInstallerPackageName(pkg)
+            }.getOrNull()
+            if (installer == null || installer !in TRUSTED_STORES) out.add(Finding(
+                NOT_FROM_STORE,
+                "It was installed from a file or another app, not from Google Play, Galaxy Store or F-Droid. " +
+                    "Most scam apps arrive this way. Fine if you installed it on purpose.",
+                false, Fix.APP))
+        }
+
         val uid = info?.applicationInfo?.uid
         if (uid != null && appOps != null) {
             val mode = runCatching {
@@ -137,6 +152,24 @@ object PrivacyRadar {
         }
         return out
     }
+
+    const val NOT_FROM_STORE = "Not from an app store"
+
+    private val TRUSTED_STORES = setOf(
+        "com.android.vending",               // Google Play
+        "com.sec.android.app.samsungapps",   // Galaxy Store
+        "org.fdroid.fdroid",                 // F-Droid
+        "org.fdroid.basic",
+        "com.aurora.store",                  // Aurora (Play mirror)
+        "com.amazon.venezia",                // Amazon Appstore
+        "com.huawei.appmarket",
+        "com.xiaomi.market",
+        "com.xiaomi.mipicks",
+        "com.heytap.market",                 // OPPO / OnePlus
+        "com.oppo.market",
+        "com.bbk.appstore",                  // vivo
+        "com.google.android.feedback",       // Play internal
+    )
 
     /** "pkg/cls:pkg2/cls2" -> {pkg, pkg2} */
     private fun owners(raw: String?): Set<String> =

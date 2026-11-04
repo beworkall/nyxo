@@ -15,6 +15,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +52,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -68,7 +72,9 @@ import com.beworkall.nyxo.Screen
 import com.beworkall.nyxo.data.AppEntry
 import com.beworkall.nyxo.data.AppStack
 import com.beworkall.nyxo.data.STACK_PREFIX
+import com.beworkall.nyxo.radar.RadarResult
 import com.beworkall.nyxo.system.Actions
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -91,7 +97,7 @@ private data class StackItem(val stack: AppStack, val apps: List<AppEntry>) : Ho
 }
 
 @Composable
-fun HomeScreen(vm: LauncherViewModel) {
+fun HomeScreen(vm: LauncherViewModel, ripples: Ripples? = null) {
     val context = LocalContext.current
     val activity = context as? Activity
     val prefs = vm.prefs
@@ -117,6 +123,13 @@ fun HomeScreen(vm: LauncherViewModel) {
     Column(
         Modifier
             .fillMaxSize()
+            .pointerInput(ripples) {
+                if (ripples == null) return@pointerInput
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    ripples.add(down.position)
+                }
+            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onDoubleTap = { onGesture.value("double") },
@@ -163,6 +176,8 @@ fun HomeScreen(vm: LauncherViewModel) {
         if (prefs.gridLayout.value) {
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 22.dp)) {
                 Spacer(Modifier.weight(1f))
+                NewAppCard(vm)
+                WidgetArea(vm)
                 if (entries.isEmpty()) EmptyHint("Swipe up for all apps.\nLong-press any app to pin it here.")
                 HomeGrid(vm, entries, prefs.columns.value)
                 Spacer(Modifier.height(16.dp))
@@ -192,6 +207,8 @@ fun HomeScreen(vm: LauncherViewModel) {
                             .fillMaxWidth()
                             .wrapContentHeight(align = Alignment.Bottom, unbounded = true),
                     ) {
+                        NewAppCard(vm)
+                        WidgetArea(vm)
                         if (entries.isEmpty()) {
                             EmptyHint("Slide your thumb along the letters on the edge.\nLong-press any app to pin it here.")
                         }
@@ -228,14 +245,13 @@ private fun handleGesture(vm: LauncherViewModel, context: Context, gesture: Stri
         "right" -> vm.appByKey(p.swipeRight.value)?.let { vm.launch(it) }
         "double" -> when (p.doubleTap.value) {
             "search" -> vm.openDrawer(focusSearch = true)
-            "settings" -> {
-                vm.screen = Screen.Settings
+            "drawer" -> vm.openDrawer()
+            "radar" -> {
+                vm.screen = Screen.Radar
             }
             else -> Unit
         }
-        "long" -> {
-            vm.screen = Screen.Settings
-        }
+        "long" -> if (p.longPressSettings.value) Actions.openNyxoSettings(context)
     }
     if (gesture == "left" || gesture == "right") {
         val key = if (gesture == "left") p.swipeLeft.value else p.swipeRight.value
@@ -259,12 +275,22 @@ private fun EmptyHint(text: String) {
 @Composable
 private fun ListAppRow(vm: LauncherViewModel, app: AppEntry, indent: Dp = 0.dp, big: Boolean = true) {
     val haptic = LocalHapticFeedback.current
+    val source = remember { MutableInteractionSource() }
+    val squish = rememberSquish(source)
+    val target = rememberLaunchTarget()
     Row(
         Modifier
             .padding(start = indent)
+            .graphicsLayer {
+                scaleX = squish
+                scaleY = squish
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+            }
             .clip(RoundedCornerShape(14.dp))
             .combinedClickable(
-                onClick = { vm.launch(app) },
+                interactionSource = source,
+                indication = null,
+                onClick = { vm.launchFrom(app, target) },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     vm.menuApp = app
@@ -273,7 +299,7 @@ private fun ListAppRow(vm: LauncherViewModel, app: AppEntry, indent: Dp = 0.dp, 
             .padding(horizontal = 4.dp, vertical = if (big) 9.dp else 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppIconImage(app, if (big) 28.dp else 24.dp)
+        AppIconImage(app, if (big) 28.dp else 24.dp, Modifier.trackBounds(target))
         Spacer(Modifier.width(14.dp))
         Text(
             app.label,
@@ -288,8 +314,57 @@ private fun ListAppRow(vm: LauncherViewModel, app: AppEntry, indent: Dp = 0.dp, 
         )
         if (vm.prefs.radarDots.value) {
             Spacer(Modifier.width(10.dp))
-            RadarDot(vm.radar[app.pkg]?.risk)
+            RadarDot(vm.radar[app.pkg]?.risk, isNew = app.pkg in vm.changes)
         }
+    }
+}
+
+/** One-time card when a newly installed app has sensitive access. */
+@Composable
+private fun NewAppCard(vm: LauncherViewModel) {
+    val context = LocalContext.current
+    val r: RadarResult = vm.newApps.firstOrNull() ?: return
+    val high = r.findings.any { it.high }
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 14.dp)
+            .nyxoSurface(shape)
+            .border(1.dp, (if (high) RiskHigh else RiskMid).copy(alpha = 0.55f), shape)
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadarDot(r.risk, size = 12.dp)
+            Spacer(Modifier.width(10.dp))
+            Text("New app: ${r.label}", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "It can: " + r.findings.joinToString(", ") { it.title.lowercase() } + ". Keep it?",
+            color = Muted,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CardButton("Review", primary = true) { vm.radarDetail = r }
+            CardButton("Keep") { vm.markSeen(r.pkg) }
+            CardButton("Remove") { Actions.uninstall(context, r.pkg) }
+        }
+    }
+}
+
+@Composable
+private fun CardButton(text: String, primary: Boolean = false, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (primary) accent() else Color.White.copy(alpha = 0.08f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+    ) {
+        Text(text, color = if (primary) Color(0xFF07090D) else Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -413,9 +488,7 @@ private fun StackPopup(vm: LauncherViewModel, item: StackItem) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(shape)
-                .background(Panel)
-                .border(1.dp, Line, shape)
+                .nyxoSurface(shape)
                 .padding(16.dp),
         ) {
             Text(item.stack.name, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 6.dp, bottom = 6.dp))
@@ -435,9 +508,7 @@ private fun Dock(vm: LauncherViewModel, apps: List<AppEntry>) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), shape)
+            .nyxoSurface(shape, solid = Color.White.copy(alpha = 0.06f))
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {
         for (app in apps) AppCell(vm, app, Modifier.weight(1f), showLabel = false, iconSize = 52.dp)
@@ -449,10 +520,14 @@ private fun Dock(vm: LauncherViewModel, apps: List<AppEntry>) {
 @Composable
 private fun Clock(h24: Boolean, onTime: () -> Unit, onDate: () -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(1000L - now % 1000L)
+    // Wakes once a minute, and only while the home screen is visible.
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                now = System.currentTimeMillis()
+                delay(60_000L - now % 60_000L + 50L)
+            }
         }
     }
     val minute = now / 60_000L

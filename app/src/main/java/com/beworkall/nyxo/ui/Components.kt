@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -39,6 +40,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +50,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -144,16 +147,35 @@ fun LetterIcon(label: String, size: Dp) {
 }
 
 @Composable
-fun RadarDot(risk: Risk?, modifier: Modifier = Modifier, size: Dp = 11.dp) {
+fun RadarDot(risk: Risk?, modifier: Modifier = Modifier, size: Dp = 11.dp, isNew: Boolean = false) {
     val color = riskColor(risk) ?: return
     Box(
         modifier
-            .size(size)
+            .size(if (isNew) size + 4.dp else size)
             .clip(CircleShape)
-            .background(Color.Black)
+            .background(if (isNew) Ink else Color.Black)
             .padding(2.dp)
             .clip(CircleShape)
+            .background(Color.Black)
+            .padding(if (isNew) 1.dp else 0.dp)
+            .clip(CircleShape)
             .background(color)
+    )
+}
+
+/** Small "NEW" tag for apps that gained a permission since you last looked. */
+@Composable
+fun NewTag() {
+    Text(
+        "NEW",
+        color = Color(0xFF07090D),
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(5.dp))
+            .background(RiskMid)
+            .padding(horizontal = 5.dp, vertical = 1.dp),
     )
 }
 
@@ -181,11 +203,16 @@ fun AppCell(
     iconSize: Dp = 54.dp,
 ) {
     val haptic = LocalHapticFeedback.current
+    val source = remember { MutableInteractionSource() }
+    val squish = rememberSquish(source)
+    val target = rememberLaunchTarget()
     Column(
         modifier
             .clip(RoundedCornerShape(16.dp))
             .combinedClickable(
-                onClick = { vm.launch(app) },
+                interactionSource = source,
+                indication = null,
+                onClick = { vm.launchFrom(app, target) },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     vm.menuApp = app
@@ -194,10 +221,15 @@ fun AppCell(
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box {
-            AppIconImage(app, iconSize)
+        Box(
+            Modifier.graphicsLayer {
+                scaleX = squish
+                scaleY = squish
+            }
+        ) {
+            AppIconImage(app, iconSize, Modifier.trackBounds(target))
             if (vm.prefs.radarDots.value) {
-                RadarDot(vm.radar[app.pkg]?.risk, Modifier.align(Alignment.BottomEnd))
+                RadarDot(vm.radar[app.pkg]?.risk, Modifier.align(Alignment.BottomEnd), isNew = app.pkg in vm.changes)
             }
         }
         if (showLabel) {
@@ -218,12 +250,21 @@ fun AppCell(
 @Composable
 fun AppRow(vm: LauncherViewModel, app: AppEntry, showIcon: Boolean = true) {
     val haptic = LocalHapticFeedback.current
+    val source = remember { MutableInteractionSource() }
+    val squish = rememberSquish(source)
+    val target = rememberLaunchTarget()
     Row(
         Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = squish
+                scaleY = squish
+            }
             .clip(RoundedCornerShape(14.dp))
             .combinedClickable(
-                onClick = { vm.launch(app) },
+                interactionSource = source,
+                indication = null,
+                onClick = { vm.launchFrom(app, target) },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     vm.menuApp = app
@@ -233,7 +274,7 @@ fun AppRow(vm: LauncherViewModel, app: AppEntry, showIcon: Boolean = true) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showIcon) {
-            AppIconImage(app, 40.dp)
+            AppIconImage(app, 40.dp, Modifier.trackBounds(target))
             Spacer(Modifier.width(14.dp))
         }
         Text(
@@ -245,7 +286,7 @@ fun AppRow(vm: LauncherViewModel, app: AppEntry, showIcon: Boolean = true) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (vm.prefs.radarDots.value) RadarDot(vm.radar[app.pkg]?.risk)
+        if (vm.prefs.radarDots.value) RadarDot(vm.radar[app.pkg]?.risk, isNew = app.pkg in vm.changes)
     }
 }
 
@@ -302,9 +343,7 @@ fun SearchField(
         decorationBox = { inner ->
             Row(
                 Modifier
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Panel)
-                    .border(1.dp, Line, RoundedCornerShape(18.dp))
+                    .nyxoSurface(RoundedCornerShape(18.dp))
                     .padding(horizontal = 14.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -440,9 +479,7 @@ fun InfoCard(title: String, body: String, color: Color = RiskOk) {
         Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Panel)
-            .border(1.dp, Line, RoundedCornerShape(16.dp))
+            .nyxoSurface(RoundedCornerShape(16.dp))
             .padding(14.dp),
     ) {
         Box(Modifier.padding(top = 6.dp).size(9.dp).clip(CircleShape).background(color))
@@ -480,9 +517,7 @@ fun RowScope.StatTile(label: String, count: Int, color: Color) {
     Column(
         Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Panel)
-            .border(1.dp, Line, RoundedCornerShape(18.dp))
+            .nyxoSurface(RoundedCornerShape(18.dp))
             .padding(14.dp),
     ) {
         Text(count.toString(), color = color, fontSize = 30.sp, fontWeight = FontWeight.Bold)

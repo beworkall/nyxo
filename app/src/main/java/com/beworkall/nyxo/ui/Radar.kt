@@ -43,10 +43,37 @@ import androidx.compose.ui.window.Dialog
 import com.beworkall.nyxo.LauncherViewModel
 import com.beworkall.nyxo.Screen
 import com.beworkall.nyxo.data.AppEntry
+import androidx.compose.ui.graphics.Color
 import com.beworkall.nyxo.radar.Fix
+import com.beworkall.nyxo.radar.PrivacyRadar
 import com.beworkall.nyxo.radar.RadarResult
 import com.beworkall.nyxo.radar.Risk
 import com.beworkall.nyxo.system.Actions
+
+class PrivacyScore(val score: Int, val grade: String, val color: Color, val summary: String, val fixFirst: List<RadarResult>)
+
+/** One number for the whole phone. Hidden helpers and full-access apps weigh the most. */
+fun privacyScore(results: Collection<RadarResult>): PrivacyScore {
+    val helpers = results.filter { !it.hasIcon && it.risk == Risk.HIGH }
+    val high = results.filter { it.hasIcon && it.risk == Risk.HIGH }
+    val outside = results.filter { r -> r.findings.any { it.title == PrivacyRadar.NOT_FROM_STORE } }
+    val medium = results.count { it.hasIcon && it.risk == Risk.MEDIUM }
+    val penalty = helpers.size * 20 + high.size * 8 + outside.size * 4 + medium
+    val score = if (results.isEmpty()) 100 else (100 - penalty).coerceIn(0, 100)
+    val (grade, color) = when {
+        score >= 85 -> "Great" to RiskOk
+        score >= 65 -> "Good" to Color(0xFF9BE36D)
+        score >= 40 -> "Needs a look" to RiskMid
+        else -> "At risk" to RiskHigh
+    }
+    val summary = when {
+        results.isEmpty() -> "Checking your apps…"
+        helpers.isEmpty() && high.isEmpty() -> "No apps with full access. ${outside.size} from outside an app store."
+        else -> "${high.size + helpers.size} with full access · ${outside.size} from outside an app store"
+    }
+    val fix = (helpers + high.sortedByDescending { it.findings.size } + outside).distinctBy { it.pkg }.take(3)
+    return PrivacyScore(score, grade, color, summary, fix)
+}
 
 @Composable
 fun RadarScreen(vm: LauncherViewModel) {
@@ -61,8 +88,76 @@ fun RadarScreen(vm: LauncherViewModel) {
     var showClean by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().systemBarsPadding()) {
-        Header("Privacy Radar", "What your apps can access right now") { vm.screen = Screen.Home }
+        Header("Privacy Radar", "What your apps can access right now") { vm.back() }
+        val score = privacyScore(results)
+        val changed = vm.changes.keys.mapNotNull { vm.radar[it] }.sortedBy { it.label.lowercase() }
         LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
+            item {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .nyxoSurface(RoundedCornerShape(22.dp))
+                        .padding(18.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(score.score.toString(), color = score.color, fontSize = 48.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(14.dp))
+                        Column {
+                            Text("Privacy score · ${score.grade}", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                            Text(score.summary, color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                        }
+                    }
+                    if (score.fixFirst.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text("FIX THESE FIRST", color = accent(), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        for (r in score.fixFirst) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { vm.radarDetail = r }
+                                    .padding(vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadarDot(r.risk, size = 10.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    "${r.label}: ${r.findings.first().title.lowercase()}",
+                                    color = Ink,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                SwitchRow(
+                    "Privacy dots on icons",
+                    "Red: full access. Amber: sensitive access. White ring: new since you last looked.",
+                    vm.prefs.radarDots.value,
+                ) { vm.prefs.radarDots.value = it }
+            }
+            if (changed.isNotEmpty()) {
+                item {
+                    Column {
+                        SectionLabel("Changed since you last looked")
+                        Text(
+                            "These apps gained access after an update or a permission prompt.",
+                            color = Muted,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
+                        )
+                    }
+                }
+                items(changed.size, key = { "n:" + changed[it].pkg }) { i ->
+                    RadarRow(byPkg[changed[i].pkg], changed[i], isNew = true) { vm.radarDetail = changed[i] }
+                }
+                item { ActionButton("Mark all as seen") { vm.markAllSeen() } }
+            }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile("Full access", high.size + helpers.size, RiskHigh)
@@ -99,13 +194,13 @@ fun RadarScreen(vm: LauncherViewModel) {
             if (high.isNotEmpty()) {
                 item { SectionLabel("Full access") }
                 items(high.size, key = { "r:" + high[it].pkg }) { i ->
-                    RadarRow(byPkg[high[i].pkg], high[i]) { vm.radarDetail = high[i] }
+                    RadarRow(byPkg[high[i].pkg], high[i], isNew = high[i].pkg in vm.changes) { vm.radarDetail = high[i] }
                 }
             }
             if (medium.isNotEmpty()) {
                 item { SectionLabel("Sensitive access") }
                 items(medium.size, key = { "m:" + medium[it].pkg }) { i ->
-                    RadarRow(byPkg[medium[i].pkg], medium[i]) { vm.radarDetail = medium[i] }
+                    RadarRow(byPkg[medium[i].pkg], medium[i], isNew = medium[i].pkg in vm.changes) { vm.radarDetail = medium[i] }
                 }
             }
             if (clean.isNotEmpty()) {
@@ -137,7 +232,7 @@ fun RadarScreen(vm: LauncherViewModel) {
 }
 
 @Composable
-private fun RadarRow(app: AppEntry?, result: RadarResult, onClick: () -> Unit) {
+private fun RadarRow(app: AppEntry?, result: RadarResult, isNew: Boolean = false, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -149,7 +244,13 @@ private fun RadarRow(app: AppEntry?, result: RadarResult, onClick: () -> Unit) {
         if (app != null) AppIconImage(app, 40.dp) else LetterIcon(result.label, 40.dp)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(result.label, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(result.label, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (isNew) {
+                    Spacer(Modifier.width(8.dp))
+                    NewTag()
+                }
+            }
             val summary = if (result.findings.isEmpty()) "No sensitive access" else result.findings.joinToString(" · ") { it.title }
             Text(summary, color = Muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
@@ -168,9 +269,7 @@ fun RadarDetailDialog(vm: LauncherViewModel, result: RadarResult) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(shape)
-                .background(Panel)
-                .border(1.dp, Line, shape)
+                .nyxoSurface(shape)
                 .verticalScroll(rememberScrollState())
                 .padding(20.dp),
         ) {
@@ -210,7 +309,10 @@ fun RadarDetailDialog(vm: LauncherViewModel, result: RadarResult) {
             if (Fix.APP !in fixes) {
                 ActionButton("App settings") { Actions.appInfo(context, result.pkg) }
             }
-            ActionButton("Close") { vm.radarDetail = null }
+            ActionButton("Got it") {
+                vm.markSeen(result.pkg)
+                vm.radarDetail = null
+            }
         }
     }
 }

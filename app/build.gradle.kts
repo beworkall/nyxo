@@ -17,7 +17,7 @@ android {
         minSdk = 28
         targetSdk = 35
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "0.2.0"
+        versionName = "0.3.0"
     }
 
     signingConfigs {
@@ -71,4 +71,5 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
 }

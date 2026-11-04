@@ -1,12 +1,16 @@
 package com.beworkall.nyxo
 
 import android.app.Application
+import android.graphics.Rect
+import android.view.View
 import android.content.Intent
 import android.net.Uri
 import android.provider.AlarmClock
 import android.provider.MediaStore
 import android.provider.Settings
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -19,6 +23,8 @@ import com.beworkall.nyxo.data.Prefs
 import com.beworkall.nyxo.data.STACK_PREFIX
 import com.beworkall.nyxo.radar.PrivacyRadar
 import com.beworkall.nyxo.radar.RadarResult
+import com.beworkall.nyxo.system.Sfx
+import com.beworkall.nyxo.system.Sound
 import com.beworkall.nyxo.system.Actions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,13 +32,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class Screen { Home, Drawer, Radar, Settings, Hidden }
+/** Screens inside the home app. Settings live in the separate Nyxo Settings app. */
+enum class Screen { Home, Drawer, Radar, Hidden }
 
 class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     private val ctx: Application get() = getApplication()
 
-    val prefs = Prefs(app)
+    val prefs = Prefs.get(app)
 
     var apps by mutableStateOf<List<AppEntry>>(emptyList())
         private set
@@ -45,7 +52,34 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     var resumeTick by mutableIntStateOf(0)
         private set
 
-    var screen by mutableStateOf(Screen.Home)
+    // Real back stack: Back returns to where you came from, Home clears it.
+    private val backStack = mutableStateListOf<Screen>()
+
+    var screen: Screen
+        get() = backStack.lastOrNull() ?: Screen.Home
+        set(value) {
+            if (value == Screen.Home) {
+                backStack.clear()
+                return
+            }
+            val existing = backStack.indexOf(value)
+            if (existing >= 0) {
+                while (backStack.size > existing + 1) backStack.removeAt(backStack.lastIndex)
+            } else {
+                if (value == Screen.Drawer) Sound.play(Sfx.OPEN)
+                backStack.add(value)
+            }
+        }
+
+    // Phone tilt for glass highlights, -1..1
+    var tiltX by mutableFloatStateOf(0f)
+    var tiltY by mutableFloatStateOf(0f)
+
+    // Privacy Radar memory
+    var changes by mutableStateOf<Map<String, Set<String>>>(emptyMap())
+        private set
+    var newApps by mutableStateOf<List<RadarResult>>(emptyList())
+        private set
     var menuApp by mutableStateOf<AppEntry?>(null)
     var radarDetail by mutableStateOf<RadarResult?>(null)
     var drawerFocusSearch by mutableStateOf(false)
@@ -54,14 +88,24 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     var openStackId by mutableStateOf<String?>(null)
 
     private var refreshJob: Job? = null
+    private var lastScan = 0L
+    private var dirty = true
 
     init {
+        Sound.init(app)
         refresh(immediate = true)
     }
 
+    /** Cheap on every resume; the full rescan only runs when something changed or 15 minutes passed. */
     fun onResume() {
         isDefaultHome = Actions.isDefaultHome(ctx)
         resumeTick++
+        if (dirty || System.currentTimeMillis() - lastScan > RESCAN_MS) refresh()
+    }
+
+    /** Called when an app is installed, updated or removed. */
+    fun markDirty() {
+        dirty = true
         refresh()
     }
 
@@ -74,7 +118,11 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             seedIfNeeded(list)
             scanning = true
             try {
-                radar = withContext(Dispatchers.Default) { PrivacyRadar.scan(ctx, list) }
+                val scanned = withContext(Dispatchers.Default) { PrivacyRadar.scan(ctx, list) }
+                radar = scanned
+                compareWithMemory(scanned)
+                lastScan = System.currentTimeMillis()
+                dirty = false
             } finally {
                 scanning = false
             }
@@ -82,6 +130,12 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------------------------------------------------------------- navigation
+
+    fun goBackOrHome(): Boolean {
+        if (backStack.isEmpty()) return false
+        backStack.removeAt(backStack.lastIndex)
+        return true
+    }
 
     fun onHomePressed() {
         stackPickerFor = null
@@ -99,8 +153,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             openStackId != null -> openStackId = null
             radarDetail != null -> radarDetail = null
             menuApp != null -> menuApp = null
-            screen == Screen.Hidden -> screen = Screen.Drawer
-            screen != Screen.Home -> screen = Screen.Home
+            else -> goBackOrHome()
         }
     }
 
@@ -116,12 +169,17 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             menuApp = null
             radarDetail = null
             openStackId = null
-            if (screen != Screen.Settings) screen = Screen.Home
+            screen = Screen.Home
         }
     }
 
-    fun launch(app: AppEntry) {
-        if (Actions.launch(ctx, app)) returnHomeSoon()
+    /** Opens [app]. With [source] set, it zooms out of the icon like the stock launcher. */
+    fun launch(app: AppEntry, sourceView: View? = null, source: Rect? = null) {
+        val context = sourceView?.context ?: ctx
+        if (Actions.launch(context, app, if (prefs.motion.value) sourceView else null, source)) {
+            Sound.launch()
+            returnHomeSoon()
+        }
     }
 
     fun appByKey(key: String): AppEntry? = if (key.isEmpty()) null else apps.firstOrNull { it.key == key }
@@ -159,6 +217,94 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             saveStacks(stacks.map { it.copy(keys = it.keys - app.key) })
             cleanEmptyStacks()
         }
+    }
+
+    // ---------------------------------------------------------------- radar memory
+
+    private fun decodeSeen(): Map<String, Set<String>> {
+        val out = HashMap<String, Set<String>>()
+        for (line in prefs.radarSeen.value) {
+            val parts = line.split('\u0001')
+            if (parts.isEmpty() || parts[0].isBlank()) continue
+            out[parts[0]] = parts.drop(1).filter { it.isNotBlank() }.toSet()
+        }
+        return out
+    }
+
+    private fun saveSeen(map: Map<String, Set<String>>) {
+        prefs.radarSeen.value = map.entries.sortedBy { it.key }.map { (pkg, titles) ->
+            (listOf(pkg) + titles.sorted()).joinToString("\u0001")
+        }
+    }
+
+    private fun titlesOf(r: RadarResult): Set<String> = r.findings.map { it.title }.toSet()
+
+    /**
+     * Compares this scan with what the user last saw.
+     * New permissions on known apps become "changes"; brand-new risky apps become home cards.
+     */
+    private fun compareWithMemory(scanned: Map<String, RadarResult>) {
+        val seen = decodeSeen().toMutableMap()
+        if (!prefs.radarSeenReady.value) {
+            // First scan ever: remember everything as the baseline.
+            for ((pkg, r) in scanned) seen[pkg] = titlesOf(r)
+            saveSeen(seen)
+            prefs.radarSeenReady.value = true
+            changes = emptyMap()
+            newApps = emptyList()
+            return
+        }
+        val changed = HashMap<String, Set<String>>()
+        val fresh = ArrayList<RadarResult>()
+        var memoryChanged = false
+        for ((pkg, r) in scanned) {
+            val known = seen[pkg]
+            val titles = titlesOf(r)
+            if (known == null) {
+                if (r.hasIcon && r.findings.isNotEmpty()) {
+                    fresh.add(r)
+                } else {
+                    seen[pkg] = titles
+                    memoryChanged = true
+                }
+            } else {
+                val added = titles - known
+                if (added.isNotEmpty()) changed[pkg] = added
+                // Permissions that were taken away are simply forgotten.
+                val kept = known intersect titles
+                if (kept.size != known.size) {
+                    seen[pkg] = kept
+                    memoryChanged = true
+                }
+            }
+        }
+        // Forget uninstalled apps.
+        val gone = seen.keys - scanned.keys
+        if (gone.isNotEmpty()) {
+            gone.forEach { seen.remove(it) }
+            memoryChanged = true
+        }
+        if (memoryChanged) saveSeen(seen)
+        changes = changed
+        newApps = fresh.sortedBy { it.label.lowercase() }
+    }
+
+    /** The user has looked at this app; stop flagging what it can currently do. */
+    fun markSeen(pkg: String) {
+        val r = radar[pkg] ?: return
+        val seen = decodeSeen().toMutableMap()
+        seen[pkg] = titlesOf(r)
+        saveSeen(seen)
+        changes = changes - pkg
+        newApps = newApps.filter { it.pkg != pkg }
+    }
+
+    fun markAllSeen() {
+        val seen = decodeSeen().toMutableMap()
+        for ((pkg, r) in radar) seen[pkg] = titlesOf(r)
+        saveSeen(seen)
+        changes = emptyMap()
+        newApps = emptyList()
     }
 
     // ---------------------------------------------------------------- stacks
@@ -261,5 +407,6 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         const val MAX_DOCK = 5
+        private const val RESCAN_MS = 15 * 60 * 1000L
     }
 }

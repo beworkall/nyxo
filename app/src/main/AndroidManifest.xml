@@ -59,5 +59,31 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Nyxo Settings: a separate icon, so the home screen itself has no settings. -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_settings"
+            android:roundIcon="@mipmap/ic_settings"
+            android:label="@string/settings_name"
+            android:taskAffinity="com.beworkall.nyxo.settings"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Lets the system wallpaper screen read a Nyxo wallpaper. Nothing else is shared. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>
