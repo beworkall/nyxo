@@ -47,7 +47,6 @@ import com.beworkall.nyxo.BuildConfig
 import com.beworkall.nyxo.LauncherViewModel
 import com.beworkall.nyxo.Screen
 import com.beworkall.nyxo.system.Actions
-import com.beworkall.nyxo.system.LockService
 
 @Composable
 fun SettingsScreen(vm: LauncherViewModel) {
@@ -55,8 +54,6 @@ fun SettingsScreen(vm: LauncherViewModel) {
     val activity = context as? Activity
     val p = vm.prefs
     var pickFor by remember { mutableStateOf<String?>(null) }
-    // Re-read on every resume so the helper status is right after visiting Accessibility settings.
-    val lockOn = remember(vm.resumeTick) { LockService.isOn }
 
     val contactsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         p.searchContacts.value = granted
@@ -131,23 +128,16 @@ fun SettingsScreen(vm: LauncherViewModel) {
 
             item { SectionLabel("Gestures") }
             item {
-                ChoiceRow("Double-tap", listOf("lock" to "Lock screen", "none" to "Off"), p.doubleTap.value) {
-                    p.doubleTap.value = it
-                }
-            }
-            if (p.doubleTap.value == "lock") {
-                item {
-                    SettingRow(
-                        "Lock helper: " + if (lockOn) "On" else "Off — tap to turn on",
-                        "Android only lets launchers lock the screen through an accessibility helper. " +
-                            "Nyxo's helper performs the lock action and nothing else.",
-                    ) { Actions.start(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-                }
+                ChoiceRow(
+                    "Double-tap",
+                    listOf("search" to "Search", "settings" to "Settings", "none" to "Off"),
+                    p.doubleTap.value,
+                ) { p.doubleTap.value = it }
             }
             item {
                 ChoiceRow(
                     "Swipe down",
-                    listOf("notifications" to "Notifications", "search" to "Search", "none" to "Off"),
+                    listOf("search" to "Search", "none" to "Off"),
                     p.swipeDown.value,
                 ) { p.swipeDown.value = it }
             }

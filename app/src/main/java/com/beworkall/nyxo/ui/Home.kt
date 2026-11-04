@@ -143,14 +143,14 @@ private fun handleGesture(vm: LauncherViewModel, context: Context, gesture: Stri
     val p = vm.prefs
     when (gesture) {
         "up" -> vm.openDrawer()
-        "down" -> when (p.swipeDown.value) {
-            "notifications" -> Actions.expandNotifications(context)
-            "search" -> vm.openDrawer(focusSearch = true)
-            else -> Unit
-        }
+        "down" -> if (p.swipeDown.value == "search") vm.openDrawer(focusSearch = true)
         "left" -> vm.appByKey(p.swipeLeft.value)?.let { vm.launch(it) }
         "right" -> vm.appByKey(p.swipeRight.value)?.let { vm.launch(it) }
-        "double" -> if (p.doubleTap.value == "lock") Actions.lock(context)
+        "double" -> when (p.doubleTap.value) {
+            "search" -> vm.openDrawer(focusSearch = true)
+            "settings" -> vm.screen = Screen.Settings
+            else -> Unit
+        }
         "long" -> {
             vm.screen = Screen.Settings
         }

@@ -1,6 +1,5 @@
 package com.beworkall.nyxo.system
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.KeyguardManager
 import android.app.SearchManager
@@ -50,8 +49,8 @@ object Actions {
     fun appInfo(context: Context, pkg: String): Boolean =
         start(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", pkg, null)))
 
-    fun uninstall(context: Context, pkg: String): Boolean =
-        start(context, Intent(Intent.ACTION_DELETE, Uri.fromParts("package", pkg, null)))
+    /** Opens the app's system page, where the user taps Uninstall themselves. */
+    fun uninstall(context: Context, pkg: String): Boolean = appInfo(context, pkg)
 
     fun openFix(context: Context, pkg: String, fix: Fix): Boolean = when (fix) {
         Fix.ACCESSIBILITY -> start(context, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -65,23 +64,6 @@ object Actions {
         Fix.NOTIFICATIONS -> "Notification access settings"
         Fix.SECURITY -> "Device admin settings"
         Fix.APP -> "Manage permissions"
-    }
-
-    /** Pulls down the notification shade. Uses the system status bar service; works on most phones. */
-    @SuppressLint("WrongConstant", "PrivateApi")
-    fun expandNotifications(context: Context) {
-        try {
-            val service = context.getSystemService("statusbar")
-            Class.forName("android.app.StatusBarManager").getMethod("expandNotificationsPanel").invoke(service)
-        } catch (e: Exception) {
-            toast(context, "This phone doesn't allow opening notifications from here")
-        }
-    }
-
-    fun lock(context: Context): Boolean {
-        if (LockService.lock()) return true
-        toast(context, "Turn on the Nyxo lock helper in Settings → Gestures")
-        return false
     }
 
     fun alarms(context: Context) = start(context, Intent(AlarmClock.ACTION_SHOW_ALARMS))

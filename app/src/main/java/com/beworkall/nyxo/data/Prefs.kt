@@ -58,9 +58,9 @@ class Prefs(context: Context) {
     val autoKeyboard = bool("auto_keyboard", true)
     val searchContacts = bool("search_contacts", false)
 
-    // Gestures: values are "lock"/"none", "notifications"/"search"/"none", or an app key
-    val doubleTap = string("double_tap", "lock")
-    val swipeDown = string("swipe_down", "notifications")
+    // Gestures: "search"/"settings"/"none", or an app key for left/right
+    val doubleTap = string("double_tap_v2", "none")
+    val swipeDown = string("swipe_down_v2", "search")
     val swipeLeft = string("swipe_left", "")
     val swipeRight = string("swipe_right", "")
 

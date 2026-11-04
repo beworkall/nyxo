@@ -35,7 +35,7 @@ call Nyxo could ever make. You can check it yourself in [`AndroidManifest.xml`](
 | 🏠 **Two home styles** | Icon grid with a dock, or a minimal text list. Switch any time. |
 | 🔎 **Offline search** | Apps, contacts (optional), settings pages, a calculator (`15% of 2400`, `(3+4)*2^3`) and unit conversions (`10 km to mi`, `70 f to c`, `2 gb to mb`). |
 | 🔤 **A–Z scroller** | Jump through the app drawer by dragging along the letters. |
-| ✋ **Gestures** | Swipe up for apps, swipe down for notifications or search, swipe left/right to open any app, double-tap to lock, long-press for settings. |
+| ✋ **Gestures** | Swipe up for apps, swipe down or double-tap for search, swipe left/right to open any app, long-press for settings. |
 | 🔒 **Hidden apps** | Hide any app from the drawer; the hidden list opens only with your fingerprint, face or screen lock. |
 | 🚫 **No tracking** | No internet, no ads, no analytics, no accounts. |
 
@@ -47,12 +47,14 @@ call Nyxo could ever make. You can check it yourself in [`AndroidManifest.xml`](
 
 Every push to `main` builds a new APK and publishes it to the latest release automatically.
 
-### Double-tap to lock
+### Permissions, all of them
 
-Android only lets a launcher lock the screen through an accessibility service. Nyxo ships a tiny one,
-**Nyxo lock helper**, that is off until you turn it on in *Settings → Gestures*. It is limited to Nyxo's own
-windows (`packageNames="com.beworkall.nyxo"`), cannot read window content (`canRetrieveWindowContent="false"`),
-and only ever calls the lock action. See [`LockService.kt`](app/src/main/java/com/beworkall/nyxo/system/LockService.kt).
+| Permission | Why |
+|---|---|
+| `USE_BIOMETRIC` | Unlock the hidden-apps list with your fingerprint or face |
+| `READ_CONTACTS` | Only if you turn on contact search. Asked at that moment, off by default |
+
+That's the full list. No internet, no accessibility service, no device admin, no overlay, no uninstall rights.
 
 ## What the Privacy Radar checks
 
@@ -86,7 +88,7 @@ app/src/main/java/com/beworkall/nyxo/
 ├── data/                    app loading, icon cache, settings
 ├── radar/PrivacyRadar.kt    on-device permission scan
 ├── search/                  search, calculator, unit converter
-├── system/                  launching, gestures, biometric prompt, lock helper
+├── system/                  launching, settings shortcuts, biometric prompt
 └── ui/                      Compose screens
 ```
 
