@@ -9,18 +9,20 @@ import android.content.Context
  * kind = "app" for a real Android widget (id = its AppWidget id),
  * or one of Nyxo's own: "battery", "volume", "privacy", "notes".
  */
-data class WidgetSpec(val kind: String, val id: Int, val heightDp: Int) {
+data class WidgetSpec(val kind: String, val id: Int, val heightDp: Int, val group: Int = 0) {
     val key: String get() = "$kind:$id"
 
-    fun encode(): String = "$kind:$id:$heightDp"
+    /** group > 0: shown in a swipeable stack with the other widgets of the same group. */
+    fun encode(): String = if (group > 0) "$kind:$id:$heightDp:$group" else "$kind:$id:$heightDp"
 
     companion object {
         fun decode(raw: String): WidgetSpec? {
             val p = raw.split(':')
-            if (p.size != 3) return null
+            if (p.size != 3 && p.size != 4) return null
             val id = p[1].toIntOrNull() ?: return null
             val h = p[2].toIntOrNull() ?: return null
-            return WidgetSpec(p[0], id, h)
+            val g = if (p.size == 4) p[3].toIntOrNull() ?: 0 else 0
+            return WidgetSpec(p[0], id, h, g)
         }
 
         val BUILT_IN = listOf(
@@ -29,6 +31,8 @@ data class WidgetSpec(val kind: String, val id: Int, val heightDp: Int) {
             Triple("privacy", "Privacy score", "Your phone's privacy score at a glance"),
             Triple("notes", "Quick note", "A note that stays on your home screen"),
         )
+
+        const val MAX_IN_STACK = 4
 
         fun defaultHeight(kind: String): Int = when (kind) {
             "battery" -> 96

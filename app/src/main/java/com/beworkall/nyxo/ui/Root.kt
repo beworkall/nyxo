@@ -21,18 +21,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import com.beworkall.nyxo.LauncherViewModel
 import com.beworkall.nyxo.Screen
+import com.beworkall.nyxo.data.IconCache
 import com.beworkall.nyxo.data.LoadedWallpaper
 import com.beworkall.nyxo.data.Prefs
 import com.beworkall.nyxo.data.Wallpapers
 import com.beworkall.nyxo.data.packById
 
-/** Picks the accent: the theme pack's colour unless the user chose their own. */
-fun themeAccent(prefs: Prefs): Color =
-    if (prefs.accentFromTheme.value) packById(prefs.themePack.value).accent
-    else ACCENTS[prefs.accent.value.coerceIn(0, ACCENTS.lastIndex)]
+/** Picks the accent from the chosen source: theme pack, wallpaper, Material You, or your own pick. */
+fun themeAccent(prefs: Prefs, wallpaper: LoadedWallpaper?, context: android.content.Context): Color =
+    when (prefs.accentMode.value) {
+        "custom" -> ACCENTS[prefs.accent.value.coerceIn(0, ACCENTS.lastIndex)]
+        "wallpaper" -> wallpaper?.vibrant ?: packById(prefs.themePack.value).accent
+        "system" -> if (android.os.Build.VERSION.SDK_INT >= 31) {
+            Color(context.getColor(android.R.color.system_accent1_200))
+        } else {
+            packById(prefs.themePack.value).accent
+        }
+        else -> packById(prefs.themePack.value).accent
+    }
+
+/** Keeps icon packs and themed icons in sync with the settings. */
+@Composable
+fun SyncIconSettings(prefs: Prefs, accent: Color) {
+    val argb = accent.toArgb()
+    val pack = prefs.iconPack.value
+    val themed = prefs.iconThemed.value
+    LaunchedEffect(pack, themed, argb) { IconCache.configure(pack, themed, argb) }
+}
 
 /** Loads the current theme's wallpaper at screen size. Shared by the home screen and Nyxo Settings. */
 @Composable
@@ -56,14 +75,16 @@ fun rememberWallpaper(prefs: Prefs): LoadedWallpaper? {
 @Composable
 fun NyxoRoot(vm: LauncherViewModel) {
     val prefs = vm.prefs
-    val accent = themeAccent(prefs)
+    val context = LocalContext.current
+    val wallpaper = rememberWallpaper(prefs)
+    val accent = themeAccent(prefs, wallpaper, context)
+    SyncIconSettings(prefs, accent)
 
     NyxoTheme(accent) {
         // A launcher never closes on Back; Back steps out of the current panel.
         BackHandler(enabled = true) { vm.back() }
 
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wallpaper = rememberWallpaper(prefs)
             val style = prefs.panelStyle.value
             val look = remember(style, wallpaper, prefs.motion.value, prefs.tiltLight.value) {
                 Look(
@@ -84,7 +105,8 @@ fun NyxoRoot(vm: LauncherViewModel) {
             val ripples = remember { Ripples() }
             val waterOn = style == "water" && prefs.motion.value
 
-            CompositionLocalProvider(LocalLook provides look) {
+            val font = remember(prefs.font.value) { fontFamilyOf(prefs.font.value) }
+            CompositionLocalProvider(LocalLook provides look, LocalNyxoFont provides font) {
                 WallpaperLayer(wallpaper, prefs.dim.value, depth)
                 if (waterOn) RippleOverlay(ripples, Color.White)
 
@@ -102,6 +124,8 @@ fun NyxoRoot(vm: LauncherViewModel) {
                 if (pickFor != null) StackPicker(vm, pickFor)
                 val editId = vm.editStackId
                 if (editId != null) StackEditor(vm, editId)
+                val limited = vm.breakerApp
+                if (limited != null) BreakerDialog(vm, limited)
 
                 // First-run setup sits above everything until it's finished.
                 SlidePanel(!prefs.onboarded.value, prefs.motion.value) { Onboarding(vm) }

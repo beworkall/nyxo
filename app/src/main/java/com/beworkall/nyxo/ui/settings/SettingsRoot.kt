@@ -111,6 +111,9 @@ import com.beworkall.nyxo.ui.nyxoSurface
 import com.beworkall.nyxo.ui.privacyScore
 import com.beworkall.nyxo.ui.rememberWallpaper
 import com.beworkall.nyxo.ui.themeAccent
+import com.beworkall.nyxo.ui.CLOCK_STYLES
+import com.beworkall.nyxo.ui.FONTS
+import com.beworkall.nyxo.ui.SyncIconSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -125,13 +128,22 @@ private enum class Page(val title: String) {
     Gestures("Gestures"),
     DrawerSearch("Drawer & search"),
     Privacy("Privacy"),
+    Icons("Icons & fonts"),
+    Studio("Theme Studio"),
+    Focus("Focus mode"),
+    Breaker("Usage breaker"),
+    Backup("Backup & restore"),
     About("About"),
 }
 
 @Composable
 fun SettingsRoot(vm: LauncherViewModel, activity: SettingsActivity) {
     val prefs = vm.prefs
-    NyxoTheme(themeAccent(prefs)) {
+    val context = LocalContext.current
+    val wallpaper = rememberWallpaper(prefs)
+    val accent = themeAccent(prefs, wallpaper, context)
+    SyncIconSettings(prefs, accent)
+    NyxoTheme(accent) {
         val stack = remember { mutableStateListOf(Page.Main) }
         val page = stack.last()
         fun open(p: Page) { Sound.play(Sfx.TAP); stack.add(p) }
@@ -148,7 +160,6 @@ fun SettingsRoot(vm: LauncherViewModel, activity: SettingsActivity) {
         }
 
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wallpaper = rememberWallpaper(prefs)
             val look = remember(prefs.panelStyle.value, wallpaper, prefs.motion.value) {
                 Look(
                     style = prefs.panelStyle.value,
@@ -190,6 +201,11 @@ fun SettingsRoot(vm: LauncherViewModel, activity: SettingsActivity) {
                                 Page.DrawerSearch -> DrawerSearchPage(vm)
                                 Page.Privacy -> PrivacyPage(vm, activity)
                                 Page.About -> AboutPage(vm, activity)
+                                Page.Icons -> IconsFontsPage(vm)
+                                Page.Studio -> StudioPage(vm)
+                                Page.Focus -> FocusPage(vm)
+                                Page.Breaker -> BreakerPage(vm)
+                                Page.Backup -> BackupPage(vm, activity)
                             }
                         }
                     }
@@ -244,7 +260,9 @@ private fun MainPage(vm: LauncherViewModel, activity: SettingsActivity, open: (P
             Group {
                 SettingRow("Theme", "${pack.name} · ${styleName(vm.prefs.panelStyle.value)}") { open(Page.Theme) }
                 SettingRow("Home screen", if (vm.prefs.gridLayout.value) "Icon grid" else "One-handed list") { open(Page.HomeLayout) }
+                SettingRow("Icons & fonts", iconSummary(vm)) { open(Page.Icons) }
                 SettingRow("Widgets", widgetSummary(vm)) { open(Page.Widgets) }
+                SettingRow("Theme Studio", lookSummary(vm)) { open(Page.Studio) }
             }
             SectionLabel("Feel")
             Group {
@@ -252,9 +270,15 @@ private fun MainPage(vm: LauncherViewModel, activity: SettingsActivity, open: (P
                 SettingRow("Gestures", "Double-tap, swipes, long-press") { open(Page.Gestures) }
                 SettingRow("Drawer & search", null) { open(Page.DrawerSearch) }
             }
+            SectionLabel("Wellbeing")
+            Group {
+                SettingRow("Focus mode", if (vm.prefs.focusOn.value) "On · ${vm.prefs.focusApps.value.size} apps paused" else "Off") { open(Page.Focus) }
+                SettingRow("Usage breaker", breakerSummary(vm)) { open(Page.Breaker) }
+            }
             SectionLabel("Safety")
             Group {
                 SettingRow("Privacy", if (vm.prefs.radarDots.value) "Privacy dots on" else "Privacy dots off") { open(Page.Privacy) }
+                SettingRow("Backup & restore", "Move your setup to a new phone") { open(Page.Backup) }
             }
             SectionLabel("Nyxo")
             Group {
@@ -269,6 +293,26 @@ private fun styleName(style: String) = when (style) {
     "hardglass" -> "Hard glass"
     "water" -> "Water"
     else -> "Solid"
+}
+
+private fun iconSummary(vm: LauncherViewModel): String {
+    val p = vm.prefs
+    val icons = when {
+        p.iconPack.value.isNotEmpty() -> "Icon pack"
+        p.iconThemed.value -> "Themed icons"
+        else -> "App icons"
+    }
+    return icons + " · " + (FONTS.firstOrNull { it.first == p.font.value }?.second ?: "Default") + " font"
+}
+
+private fun lookSummary(vm: LauncherViewModel): String {
+    val n = vm.prefs.looks.value.size
+    return if (n == 0) "Save your look and switch in one tap" else "$n saved"
+}
+
+private fun breakerSummary(vm: LauncherViewModel): String {
+    val n = vm.prefs.breakerApps.value.size
+    return if (n == 0) "Off" else "$n apps with a daily limit"
 }
 
 private fun widgetSummary(vm: LauncherViewModel): String {
@@ -349,10 +393,26 @@ private fun ThemePage(vm: LauncherViewModel) {
                         }
                     }
                     SectionLabel("Accent colour")
-                    SwitchRow("Match the theme", "Use the colour picked for this wallpaper", p.accentFromTheme.value) {
-                        p.accentFromTheme.value = it
-                    }
-                    if (!p.accentFromTheme.value) {
+                    ChipGrid(
+                        "Where the colour comes from",
+                        buildList {
+                            add("theme" to "Theme")
+                            add("wallpaper" to "Wallpaper")
+                            if (android.os.Build.VERSION.SDK_INT >= 31) add("system" to "Material You")
+                            add("custom" to "Pick")
+                        },
+                        p.accentMode.value,
+                    ) { p.accentMode.value = it; p.accentFromTheme.value = it == "theme" }
+                    Text(
+                        when (p.accentMode.value) {
+                            "wallpaper" -> "Taken from the strongest colour in your Nyxo wallpaper."
+                            "system" -> "Follows your phone's Material You colours."
+                            "custom" -> "Your own colour, whatever the theme."
+                            else -> "The colour made for this theme pack."
+                        },
+                        color = Muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                    if (p.accentMode.value == "custom") {
                         Row(
                             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -478,12 +538,9 @@ private fun HomeLayoutPage(vm: LauncherViewModel) {
             }
             SectionLabel("Clock")
             Group {
-                ChoiceRow(
-                    "Style",
-                    listOf("thin" to "Thin", "bold" to "Bold", "stacked" to "Stacked"),
-                    p.clockStyle.value,
-                ) { p.clockStyle.value = it }
+                ChipGrid("Style", CLOCK_STYLES, p.clockStyle.value) { p.clockStyle.value = it }
                 SwitchRow("24-hour clock", null, p.clock24.value) { p.clock24.value = it }
+                CalendarLineRow(vm)
             }
         }
     }
@@ -524,13 +581,25 @@ private fun WidgetsPage(vm: LauncherViewModel, activity: SettingsActivity) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(name, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("Height ${spec.heightDp} dp", color = Muted, fontSize = 12.sp)
+                        Text(
+                            if (spec.group > 0) "In a stack · height ${spec.heightDp} dp" else "Height ${spec.heightDp} dp",
+                            color = if (spec.group > 0) accent() else Muted, fontSize = 12.sp,
+                        )
                     }
                     MiniBtn("−") { resize(vm, spec, -30) }
                     MiniBtn("+") { resize(vm, spec, 30) }
                     MiniBtn("↑", enabled = index > 0) { move(vm, index, -1) }
                     MiniBtn("↓", enabled = index < specs.lastIndex) { move(vm, index, 1) }
                     MiniBtn("✕") { activity.removeWidget(spec) }
+                }
+                if (index > 0) {
+                    val above = specs[index - 1]
+                    val stacked = spec.group > 0 && spec.group == above.group
+                    SwitchRow(
+                        "Stack with the widget above",
+                        "Swipe sideways on the home screen to flip between them",
+                        stacked,
+                    ) { on -> setStacked(vm, index, on) }
                 }
             }
         }
@@ -622,6 +691,32 @@ private fun resize(vm: LauncherViewModel, spec: WidgetSpec, delta: Int) {
     }
 }
 
+/** Joins widget [index] to the stack of the widget above it, or splits it off. */
+private fun setStacked(vm: LauncherViewModel, index: Int, on: Boolean) {
+    val list = vm.prefs.widgets.value.mapNotNull { WidgetSpec.decode(it) }.toMutableList()
+    if (index !in 1..list.lastIndex) return
+    if (on) {
+        val above = list[index - 1]
+        val group = if (above.group > 0) above.group else (list.maxOfOrNull { it.group } ?: 0) + 1
+        val size = list.count { it.group == group && group > 0 }
+        if (size >= WidgetSpec.MAX_IN_STACK) {
+            Actions.toast(vm.getApplication<android.app.Application>(), "A stack holds up to ${WidgetSpec.MAX_IN_STACK} widgets")
+            return
+        }
+        list[index - 1] = above.copy(group = group)
+        list[index] = list[index].copy(group = group)
+    } else {
+        list[index] = list[index].copy(group = 0)
+        // Anything below that was in the same stack moves out with it.
+        val old = vm.prefs.widgets.value.mapNotNull { WidgetSpec.decode(it) }[index].group
+        var i = index + 1
+        while (i < list.size && old > 0 && list[i].group == old) { list[i] = list[i].copy(group = 0); i++ }
+        // A stack of one is just a widget.
+        if (list.count { it.group == list[index - 1].group } == 1) list[index - 1] = list[index - 1].copy(group = 0)
+    }
+    vm.prefs.widgets.value = list.map { it.encode() }
+}
+
 private fun move(vm: LauncherViewModel, index: Int, by: Int) {
     val list = vm.prefs.widgets.value.toMutableList()
     val to = index + by
@@ -676,9 +771,9 @@ private fun GesturesPage(vm: LauncherViewModel) {
     SettingsList {
         item {
             Group {
-                ChoiceRow(
+                ChipGrid(
                     "Double-tap the home screen",
-                    listOf("search" to "Search", "drawer" to "Apps", "radar" to "Radar", "none" to "Nothing"),
+                    listOf("search" to "Search", "drawer" to "Apps", "radar" to "Radar", "focus" to "Focus mode", "none" to "Nothing"),
                     p.doubleTap.value,
                 ) { p.doubleTap.value = it }
                 ChoiceRow(
@@ -859,5 +954,361 @@ private fun LinkChip(label: String, modifier: Modifier, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(label, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+// ------------------------------------------------------------------- shared pieces
+
+/** Choice chips that wrap onto more lines when they don't fit. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ChipGrid(title: String, options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp)) {
+        Text(title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(10.dp))
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            for ((value, label) in options) {
+                val on = value == selected
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (on) accent().copy(alpha = 0.16f) else Panel)
+                        .border(1.dp, if (on) accent() else com.beworkall.nyxo.ui.Line, RoundedCornerShape(999.dp))
+                        .clickable { Sound.play(Sfx.TAP); onSelect(value) }
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                ) {
+                    Text(label, color = if (on) accent() else Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalendarLineRow(vm: LauncherViewModel) {
+    val context = LocalContext.current
+    val p = vm.prefs
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        p.calendarLine.value = granted
+        if (!granted) Actions.toast(context, "Calendar access is needed to show your next event")
+    }
+    SwitchRow("Next event under the date", "Reads your calendar on the phone. Asks for calendar access.", p.calendarLine.value) { on ->
+        if (on && !com.beworkall.nyxo.data.CalendarLine.hasPermission(context)) {
+            ask.launch(android.Manifest.permission.READ_CALENDAR)
+        } else {
+            p.calendarLine.value = on
+        }
+    }
+}
+
+/** Searchable list of apps with tick boxes. */
+@Composable
+private fun AppChecklist(vm: LauncherViewModel, selected: List<String>, onToggle: (String, Boolean) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    val apps = remember(vm.apps, query) {
+        if (query.isBlank()) vm.apps else vm.apps.filter { it.label.contains(query.trim(), ignoreCase = true) }
+    }
+    Column {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(PanelHi)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            if (query.isEmpty()) Text("Search apps", color = Faint, fontSize = 15.sp)
+            androidx.compose.foundation.text.BasicTextField(
+                value = query,
+                onValueChange = { query = it },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = Ink, fontSize = 15.sp),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(accent()),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        for (app in apps.take(200)) {
+            val on = app.key in selected
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { Sound.play(Sfx.TAP); onToggle(app.key, !on) }
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                com.beworkall.nyxo.ui.AppIconImage(app, 32.dp)
+                Spacer(Modifier.width(12.dp))
+                Text(app.label, color = Ink, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                androidx.compose.material3.Checkbox(
+                    checked = on,
+                    onCheckedChange = { onToggle(app.key, it) },
+                    colors = androidx.compose.material3.CheckboxDefaults.colors(
+                        checkedColor = accent(),
+                        uncheckedColor = Faint,
+                        checkmarkColor = Color(0xFF07090D),
+                    ),
+                )
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------------- icons & fonts
+
+@Composable
+private fun IconsFontsPage(vm: LauncherViewModel) {
+    val context = LocalContext.current
+    val p = vm.prefs
+    val packs by produceState(emptyList<com.beworkall.nyxo.data.IconPackInfo>()) {
+        value = withContext(Dispatchers.IO) { com.beworkall.nyxo.data.IconPacks.installed(context) }
+    }
+    SettingsList {
+        item {
+            SectionLabel("Icons")
+            Group {
+                SwitchRow(
+                    "Themed icons",
+                    "Every icon in your accent colour on a dark disc",
+                    p.iconThemed.value,
+                ) { p.iconThemed.value = it }
+                ChipGrid(
+                    "Icon pack",
+                    listOf("" to "App icons") + packs.map { it.pkg to it.label },
+                    p.iconPack.value,
+                ) { p.iconPack.value = it }
+                if (packs.isEmpty()) {
+                    SettingRow("Get an icon pack", "Any pack for Nova or ADW works. Opens the Play Store.") {
+                        Actions.url(context, "https://play.google.com/store/search?q=icon%20pack&c=apps")
+                    }
+                } else {
+                    Text(
+                        "Apps the pack doesn't cover keep their own icon.",
+                        color = Muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            SectionLabel("Font")
+            Group {
+                ChipGrid("Clock and app names", FONTS, p.font.value) { p.font.value = it }
+                Text(
+                    "Aa  10:42  Gallery",
+                    color = Ink,
+                    fontSize = 26.sp,
+                    fontFamily = com.beworkall.nyxo.ui.fontFamilyOf(p.font.value),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                )
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------------- theme studio
+
+@Composable
+private fun StudioPage(vm: LauncherViewModel) {
+    val p = vm.prefs
+    val context = LocalContext.current
+    val looks = p.looks.value.mapNotNull { com.beworkall.nyxo.data.SavedLook.decode(it) }
+    var naming by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    SettingsList {
+        item {
+            Text(
+                "Set up a theme, clock, font and icons you like, then save it here. Switch between your looks in one tap.",
+                color = Muted, fontSize = 13.sp, lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            ActionButton("Save current look", primary = true) { name = "Look ${looks.size + 1}"; naming = true }
+            SectionLabel("Your looks")
+            if (looks.isEmpty()) Text("Nothing saved yet.", color = Faint, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
+        }
+        items(looks, key = { it.id }) { look ->
+            val pack = packById(look.pack)
+            val inUse = look.pack == p.themePack.value && look.style == p.panelStyle.value &&
+                look.clock == p.clockStyle.value && look.font == p.font.value && look.accentMode == p.accentMode.value
+            Group {
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val thumb by produceState<ImageBitmap?>(null, look.pack) {
+                        value = Wallpapers.thumbnail(context, pack, 120, 200)
+                    }
+                    Box(Modifier.size(width = 44.dp, height = 64.dp).clip(RoundedCornerShape(10.dp)).background(Color.Black)) {
+                        val t = thumb
+                        if (t != null) Image(t, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        Box(Modifier.align(Alignment.BottomStart).padding(5.dp).size(9.dp).clip(CircleShape).background(pack.accent))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(look.name, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            "${pack.name} · ${styleName(look.style)} · ${CLOCK_STYLES.firstOrNull { it.first == look.clock }?.second ?: "Thin"}",
+                            color = if (inUse) accent() else Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    MiniBtn(if (inUse) "✓" else "▶", enabled = !inUse) {
+                        look.applyTo(p)
+                        Sound.play(if (look.style == "water") Sfx.DROP else Sfx.GLASS)
+                    }
+                    MiniBtn("✕") { p.looks.value = p.looks.value.filter { com.beworkall.nyxo.data.SavedLook.decode(it)?.id != look.id } }
+                }
+            }
+        }
+    }
+    if (naming) {
+        AlertDialog(
+            onDismissRequest = { naming = false },
+            containerColor = Panel,
+            title = { Text("Name this look", color = Ink) },
+            text = { com.beworkall.nyxo.ui.NameField(name, { name = it.take(30) }, "Look name") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val look = com.beworkall.nyxo.data.SavedLook.fromCurrent(p, name.trim().ifEmpty { "My look" })
+                    p.looks.value = p.looks.value + look.encode()
+                    naming = false
+                    Sound.play(Sfx.GLASS)
+                }) { Text("Save", color = accent()) }
+            },
+            dismissButton = { TextButton(onClick = { naming = false }) { Text("Cancel", color = Muted) } },
+        )
+    }
+}
+
+// ------------------------------------------------------------------- focus mode
+
+@Composable
+private fun FocusPage(vm: LauncherViewModel) {
+    val p = vm.prefs
+    SettingsList {
+        item {
+            Group {
+                SwitchRow(
+                    "Focus mode",
+                    "Pauses the apps you pick below. They disappear from home, the letter strip and the app list until you turn it off.",
+                    p.focusOn.value,
+                ) { vm.toggleFocus() }
+            }
+            Text(
+                "Tip: set double-tap to Focus mode in Gestures, or tap the Focus pill under the clock to end it.",
+                color = Muted, fontSize = 13.sp, lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+            )
+            SectionLabel("Apps to pause (${p.focusApps.value.size})")
+            AppChecklist(vm, p.focusApps.value) { key, on ->
+                p.focusApps.value = if (on) (p.focusApps.value + key).distinct() else p.focusApps.value - key
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------------- usage breaker
+
+@Composable
+private fun BreakerPage(vm: LauncherViewModel) {
+    val p = vm.prefs
+    var picking by remember { mutableStateOf(false) }
+    val limited = p.breakerApps.value.mapNotNull { line ->
+        val parts = line.split('\t')
+        val app = vm.appByKey(parts.getOrNull(0).orEmpty()) ?: return@mapNotNull null
+        app to (parts.getOrNull(1)?.toIntOrNull() ?: 10)
+    }
+    SettingsList {
+        item {
+            Text(
+                "Set a daily limit for apps that eat your time. Once you reach it, Nyxo asks you to take a breath before opening the app. " +
+                    "Only opens from Nyxo are counted, so no usage access is needed.",
+                color = Muted, fontSize = 13.sp, lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            ActionButton("Add an app", primary = true) { picking = true }
+            SectionLabel("Limits")
+            if (limited.isEmpty()) Text("No limits yet.", color = Faint, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
+        }
+        items(limited, key = { it.first.key }) { (app, limit) ->
+            Group {
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    com.beworkall.nyxo.ui.AppIconImage(app, 32.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(app.label, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            "$limit opens a day · ${com.beworkall.nyxo.data.Wellbeing.opensToday(p, app.key)} today",
+                            color = Muted, fontSize = 12.sp,
+                        )
+                    }
+                    MiniBtn("−", enabled = limit > 1) { com.beworkall.nyxo.data.Wellbeing.setLimit(p, app.key, limit - 1) }
+                    MiniBtn("+") { com.beworkall.nyxo.data.Wellbeing.setLimit(p, app.key, limit + 1) }
+                    MiniBtn("✕") { com.beworkall.nyxo.data.Wellbeing.setLimit(p, app.key, null) }
+                }
+            }
+        }
+    }
+    if (picking) {
+        AppPicker(
+            vm,
+            "Limit which app?",
+            onPick = { app ->
+                if (app != null) com.beworkall.nyxo.data.Wellbeing.setLimit(p, app.key, 10)
+                picking = false
+            },
+            onDismiss = { picking = false },
+        )
+    }
+}
+
+// ------------------------------------------------------------------- backup
+
+@Composable
+private fun BackupPage(vm: LauncherViewModel, activity: SettingsActivity) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) scope.launch {
+            busy = true
+            val ok = com.beworkall.nyxo.data.Backup.export(context, uri)
+            busy = false
+            Actions.toast(context, if (ok) "Backup saved" else "Couldn't save the backup")
+        }
+    }
+    val load = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            busy = true
+            val error = com.beworkall.nyxo.data.Backup.import(context, uri)
+            busy = false
+            if (error == null) {
+                Sound.play(Sfx.UNLOCK)
+                Actions.toast(context, "Setup restored")
+                vm.refresh(immediate = true)
+            } else {
+                Actions.toast(context, error)
+            }
+        }
+    }
+    SettingsList {
+        item {
+            Text(
+                "One file with your home apps, dock, stacks, hidden apps, Nyxo widgets, theme, saved looks and gestures. " +
+                    "Save it anywhere, then load it on your new phone.",
+                color = Muted, fontSize = 13.sp, lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            ActionButton(if (busy) "Working…" else "Save backup", primary = true) {
+                if (!busy) save.launch("nyxo-backup.json")
+            }
+            ActionButton("Restore from a backup") {
+                if (!busy) load.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+            }
+            Text(
+                "Widgets from other apps can't move between phones. Add them again after restoring.",
+                color = Faint, fontSize = 12.sp, lineHeight = 17.sp,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+            )
+        }
     }
 }

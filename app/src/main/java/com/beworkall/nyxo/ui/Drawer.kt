@@ -109,7 +109,9 @@ fun DrawerScreen(vm: LauncherViewModel) {
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val hidden = prefs.hidden.value
-    val visible = remember(vm.apps, hidden) { vm.apps.filter { it.key !in hidden } }
+    val focusOn = prefs.focusOn.value
+    val focusApps = prefs.focusApps.value
+    val visible = remember(vm.apps, hidden, focusOn, focusApps) { vm.apps.filter { !vm.isAway(it) } }
     val pullToClose = remember { PullToClose { vm.back() } }
 
     LaunchedEffect(Unit) {

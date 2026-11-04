@@ -7,6 +7,14 @@ import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Bundle
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.beworkall.nyxo.system.Sfx
+import com.beworkall.nyxo.system.Sound
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,31 +66,86 @@ import com.beworkall.nyxo.data.WidgetSpec
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/** Widgets the user added in Nyxo Settings, shown above the app list. */
+/** Widgets the user added in Nyxo Settings, shown above the app list. Grouped widgets swipe as one stack. */
 @Composable
 fun WidgetArea(vm: LauncherViewModel) {
     val specs = vm.prefs.widgets.value.mapNotNull { WidgetSpec.decode(it) }
     if (specs.isEmpty()) return
+    // Consecutive widgets in the same group become one stack.
+    val blocks = ArrayList<List<WidgetSpec>>()
+    for (spec in specs) {
+        val last = blocks.lastOrNull()
+        if (spec.group > 0 && last != null && last.first().group == spec.group && last.size < WidgetSpec.MAX_IN_STACK) {
+            blocks[blocks.lastIndex] = last + spec
+        } else {
+            blocks.add(listOf(spec))
+        }
+    }
     Column(
         Modifier.fillMaxWidth().padding(bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        for (spec in specs) {
-            key(spec.key) {
+        for (block in blocks) {
+            key(block.first().key) {
+                if (block.size == 1) {
+                    val spec = block.first()
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(spec.heightDp.dp)
+                            .nyxoSurface(RoundedCornerShape(22.dp)),
+                    ) { WidgetContent(vm, spec) }
+                } else {
+                    WidgetStack(vm, block)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WidgetContent(vm: LauncherViewModel, spec: WidgetSpec) {
+    when (spec.kind) {
+        "app" -> AppWidget(spec)
+        "battery" -> BatteryWidget()
+        "volume" -> VolumeWidget()
+        "privacy" -> PrivacyWidget(vm)
+        "notes" -> NotesWidget(vm)
+    }
+}
+
+/** Up to four widgets in one slot. Swipe sideways to flip through them. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun WidgetStack(vm: LauncherViewModel, block: List<WidgetSpec>) {
+    val pager = rememberPagerState(pageCount = { block.size })
+    val height = block.maxOf { it.heightDp }
+    val accentColor = accent()
+    LaunchedEffect(pager.currentPage) { if (pager.currentPage > 0 || pager.isScrollInProgress) Sound.play(Sfx.TICK) }
+    Column(Modifier.fillMaxWidth()) {
+        HorizontalPager(
+            state = pager,
+            pageSpacing = 10.dp,
+            modifier = Modifier.fillMaxWidth().height(height.dp),
+        ) { page ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .nyxoSurface(RoundedCornerShape(22.dp)),
+            ) { WidgetContent(vm, block[page]) }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(top = 6.dp),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            repeat(block.size) { i ->
                 Box(
                     Modifier
-                        .fillMaxWidth()
-                        .height(spec.heightDp.dp)
-                        .nyxoSurface(RoundedCornerShape(22.dp)),
-                ) {
-                    when (spec.kind) {
-                        "app" -> AppWidget(spec)
-                        "battery" -> BatteryWidget()
-                        "volume" -> VolumeWidget()
-                        "privacy" -> PrivacyWidget(vm)
-                        "notes" -> NotesWidget(vm)
-                    }
-                }
+                        .padding(horizontal = 3.dp)
+                        .size(width = if (i == pager.currentPage) 16.dp else 6.dp, height = 6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (i == pager.currentPage) accentColor else Color.White.copy(alpha = 0.3f)),
+                )
             }
         }
     }

@@ -34,6 +34,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -340,6 +342,40 @@ fun HiddenScreen(vm: LauncherViewModel) {
         }
         LazyColumn(Modifier.padding(horizontal = 12.dp)) {
             items(hidden.size, key = { hidden[it].key }) { i -> AppRow(vm, hidden[i]) }
+        }
+    }
+}
+
+/** Usage breaker: a short pause before opening an app you limited. */
+@Composable
+fun BreakerDialog(vm: LauncherViewModel, app: AppEntry) {
+    val opens = com.beworkall.nyxo.data.Wellbeing.opensToday(vm.prefs, app.key)
+    var wait by remember(app.key) { mutableIntStateOf(5) }
+    androidx.compose.runtime.LaunchedEffect(app.key) {
+        while (wait > 0) {
+            kotlinx.coroutines.delay(1000)
+            wait--
+        }
+    }
+    Dialog(onDismissRequest = { vm.breakerApp = null }) {
+        val shape = RoundedCornerShape(24.dp)
+        Column(
+            Modifier.fillMaxWidth().nyxoSurface(shape).padding(22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            AppIconImage(app, 56.dp)
+            Spacer(Modifier.height(14.dp))
+            Text("Take a breath", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "You've opened ${app.label} $opens times today.",
+                color = Muted, fontSize = 15.sp, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(16.dp))
+            ActionButton("Not now", primary = true) { vm.breakerApp = null }
+            ActionButton(if (wait > 0) "Open anyway ($wait)" else "Open anyway") {
+                if (wait == 0) vm.launchNow(app)
+            }
         }
     }
 }

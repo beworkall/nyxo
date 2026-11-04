@@ -20,6 +20,7 @@ import com.beworkall.nyxo.data.AppEntry
 import com.beworkall.nyxo.data.AppStack
 import com.beworkall.nyxo.data.AppRepository
 import com.beworkall.nyxo.data.Prefs
+import com.beworkall.nyxo.data.Wellbeing
 import com.beworkall.nyxo.data.STACK_PREFIX
 import com.beworkall.nyxo.radar.PrivacyRadar
 import com.beworkall.nyxo.radar.RadarResult
@@ -151,6 +152,7 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
             stackPickerFor != null -> stackPickerFor = null
             editStackId != null -> editStackId = null
             openStackId != null -> openStackId = null
+            breakerApp != null -> breakerApp = null
             radarDetail != null -> radarDetail = null
             menuApp != null -> menuApp = null
             else -> goBackOrHome()
@@ -173,13 +175,36 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Set when a limited app was opened too often today; the breaker dialog asks first. */
+    var breakerApp by mutableStateOf<AppEntry?>(null)
+
     /** Opens [app]. With [source] set, it zooms out of the icon like the stock launcher. */
     fun launch(app: AppEntry, sourceView: View? = null, source: Rect? = null) {
+        val limit = Wellbeing.limitOf(prefs, app.key)
+        if (limit != null && Wellbeing.opensToday(prefs, app.key) >= limit) {
+            breakerApp = app
+            return
+        }
+        launchNow(app, sourceView, source)
+    }
+
+    /** Opens without the usage-breaker check (the breaker's "Open anyway"). */
+    fun launchNow(app: AppEntry, sourceView: View? = null, source: Rect? = null) {
+        breakerApp = null
         val context = sourceView?.context ?: ctx
         if (Actions.launch(context, app, if (prefs.motion.value) sourceView else null, source)) {
+            Wellbeing.recordOpen(prefs, app.key)
             Sound.launch()
             returnHomeSoon()
         }
+    }
+
+    /** Apps hidden right now: hidden on purpose, or paused by focus mode. */
+    fun isAway(app: AppEntry): Boolean = app.key in prefs.hidden.value || Wellbeing.isFocusHidden(prefs, app.key)
+
+    fun toggleFocus() {
+        prefs.focusOn.value = !prefs.focusOn.value
+        Sound.play(if (prefs.focusOn.value) Sfx.GLASS else Sfx.TAP)
     }
 
     fun appByKey(key: String): AppEntry? = if (key.isEmpty()) null else apps.firstOrNull { it.key == key }

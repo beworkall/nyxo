@@ -15,7 +15,14 @@ class Pref<T>(
     private val write: (SharedPreferences.Editor, String, T) -> Unit,
     private val durable: Boolean = false,
 ) {
+    private val reader = read
+    private val fallback = default
     private val state: MutableState<T> = mutableStateOf(read(sp, key, default))
+
+    /** Re-reads the stored value, used after restoring a backup. */
+    fun reload() {
+        state.value = reader(sp, key, fallback)
+    }
 
     var value: T
         get() = state.value
@@ -34,23 +41,28 @@ class Pref<T>(
  * app see every change instantly.
  */
 class Prefs private constructor(context: Context) {
-    private val sp: SharedPreferences = context.getSharedPreferences("nyxo", Context.MODE_PRIVATE)
+    val sp: SharedPreferences = context.getSharedPreferences("nyxo", Context.MODE_PRIVATE)
+    private val all = ArrayList<Pref<*>>()
+    private fun <T> reg(p: Pref<T>): Pref<T> { all.add(p); return p }
 
-    private fun bool(k: String, d: Boolean, durable: Boolean = false) = Pref<Boolean>(sp, k, d,
-        { s, key, def -> s.getBoolean(key, def) }, { e, key, v -> e.putBoolean(key, v) }, durable)
+    /** Re-reads every setting from disk. */
+    fun reloadAll() = all.forEach { it.reload() }
 
-    private fun int(k: String, d: Int, durable: Boolean = false) = Pref<Int>(sp, k, d,
-        { s, key, def -> s.getInt(key, def) }, { e, key, v -> e.putInt(key, v) }, durable)
+    private fun bool(k: String, d: Boolean, durable: Boolean = false) = reg(Pref<Boolean>(sp, k, d,
+        { s, key, def -> s.getBoolean(key, def) }, { e, key, v -> e.putBoolean(key, v) }, durable))
 
-    private fun float(k: String, d: Float) = Pref<Float>(sp, k, d,
-        { s, key, def -> s.getFloat(key, def) }, { e, key, v -> e.putFloat(key, v) })
+    private fun int(k: String, d: Int, durable: Boolean = false) = reg(Pref<Int>(sp, k, d,
+        { s, key, def -> s.getInt(key, def) }, { e, key, v -> e.putInt(key, v) }, durable))
 
-    private fun string(k: String, d: String) = Pref<String>(sp, k, d,
-        { s, key, def -> s.getString(key, def) ?: def }, { e, key, v -> e.putString(key, v) })
+    private fun float(k: String, d: Float) = reg(Pref<Float>(sp, k, d,
+        { s, key, def -> s.getFloat(key, def) }, { e, key, v -> e.putFloat(key, v) }))
 
-    private fun list(k: String) = Pref<List<String>>(sp, k, emptyList(),
+    private fun string(k: String, d: String) = reg(Pref<String>(sp, k, d,
+        { s, key, def -> s.getString(key, def) ?: def }, { e, key, v -> e.putString(key, v) }))
+
+    private fun list(k: String) = reg(Pref<List<String>>(sp, k, emptyList(),
         { s, key, _ -> (s.getString(key, "") ?: "").split('\n').filter { it.isNotBlank() } },
-        { e, key, v -> e.putString(key, v.joinToString("\n")) })
+        { e, key, v -> e.putString(key, v.joinToString("\n")) }))
 
     // Look
     val gridLayout = bool("grid_layout_v2", false, durable = true) // false = one-handed list
@@ -58,9 +70,26 @@ class Prefs private constructor(context: Context) {
     val columns = int("columns", 4)
     val radarDots = bool("radar_dots", true, durable = true)
     val clock24 = bool("clock_24", DateFormat.is24HourFormat(context))
-    val clockStyle = string("clock_style", "thin") // thin, bold, stacked
+    val clockStyle = string("clock_style", "thin") // thin, bold, stacked, analog, words
     val accent = int("accent", 0)
     val accentFromTheme = bool("accent_from_theme", true)
+    // theme = the pack's colour, wallpaper = picked from the wallpaper, system = Material You, custom = ACCENTS[accent]
+    val accentMode = string("accent_mode", if (sp.getBoolean("accent_from_theme", true)) "theme" else "custom")
+    val font = string("font", "default") // default, light, condensed, serif, mono
+    val calendarLine = bool("calendar_line", false)
+
+    // Icons
+    val iconPack = string("icon_pack", "") // package name of an icon pack, "" = app icons
+    val iconThemed = bool("icon_themed", false)
+
+    // Wellbeing
+    val focusOn = bool("focus_on", false)
+    val focusApps = list("focus_apps")
+    val breakerApps = list("breaker_apps") // "key\tlimit"
+    val breakerCounts = string("breaker_counts", "") // "yyyyMMdd|key=n|key=n"
+
+    // Theme Studio: saved looks, encoded by SavedLook
+    val looks = list("looks")
 
     // Theme: wallpaper pack + panel style
     val themePack = string("theme_pack", "amoled")

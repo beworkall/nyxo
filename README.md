@@ -32,7 +32,14 @@ call Nyxo could ever make. You can check it yourself in [`AndroidManifest.xml`](
 | **Theme packs** | Pure AMOLED plus six original wallpapers (Midnight City, Crimson Ronin, Golden Moon, Summit, Bare Branches, Dusk Street), each paired with an accent and a panel style. Or use your own photo. |
 | **Glass, hard glass, water** | Panels blur the wallpaper behind them. Hard glass has crisp bright edges, water ripples where you touch, and glass catches the light as you tilt the phone. |
 | **Sounds & motion** | Soft taps, glass chimes and water drops, springy panels and apps that open from their icon. Silent on vibrate or mute. |
-| **Widgets** | Any app's widgets, plus Nyxo's own: battery, media volume, privacy score and a quick note. |
+| **Widgets & stacks** | Any app's widgets, plus Nyxo's own: battery, media volume, privacy score and a quick note. Stack up to four in one slot and swipe between them. |
+| **Icon packs & themed icons** | Use any Nova/ADW icon pack from the Play Store, or tint every icon to your accent. |
+| **Clock & fonts** | Thin, bold, stacked, analog or words ("quarter past ten"), your next calendar event under the date, and five system fonts. |
+| **Theme Studio** | Save your theme, clock, font and icons as a look and switch between looks in one tap. |
+| **Accent colours** | From the theme, from your wallpaper, from Material You, or your own pick. |
+| **Focus mode** | Pause the apps you pick. They disappear until you end focus. |
+| **Usage breaker** | A daily open limit for apps that eat your time, with a five-second pause before going over. |
+| **Backup & restore** | Your whole setup in one file, ready for your next phone. |
 | **Separate settings app** | **Nyxo Settings** has its own icon, so the home screen stays clean. It also has a **Switch home app** button to go back to One UI Home any time. |
 | **Privacy Radar** | Flags apps with an accessibility service, notification access, device admin, overlays, camera, mic, location, SMS or call log. Plain-language explanations and one tap to the right settings page. |
 | **Change alerts** | A NEW badge when an app gains powerful access, a card for every newly installed app (Review / Keep / Remove), and a warning for apps that didn't come from an app store. |
@@ -63,6 +70,7 @@ Every push to `main` builds a new APK and publishes it to the latest release aut
 |---|---|
 | `USE_BIOMETRIC` | Unlock the hidden-apps list with your fingerprint or face |
 | `READ_CONTACTS` | Only if you turn on contact search. Asked at that moment, off by default |
+| `READ_CALENDAR` | Only if you turn on "Next event under the date". Asked at that moment, off by default |
 
 That's the full list. No internet, no accessibility service, no device admin, no overlay, no uninstall rights.
 

@@ -126,7 +126,8 @@ fun AppIconImage(app: AppEntry, size: Dp, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val px = with(LocalDensity.current) { size.roundToPx() }
     // Keyed on the app: when a row is reused for a different app (thumb strip, search), the old icon is dropped.
-    val icon by produceState(IconCache.peek(app, px), app.key, px) {
+    val iconVersion = IconCache.version
+    val icon by produceState(IconCache.peek(app, px), app.key, px, iconVersion) {
         value = IconCache.peek(app, px)
         if (value == null) value = IconCache.load(context, app, px)
     }
@@ -238,7 +239,7 @@ fun AppCell(
             Spacer(Modifier.height(6.dp))
             Text(
                 app.label,
-                style = TextStyle(fontSize = 12.sp, color = Ink, shadow = LabelShadow),
+                style = TextStyle(fontSize = 12.sp, color = Ink, fontFamily = LocalNyxoFont.current, shadow = LabelShadow),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,

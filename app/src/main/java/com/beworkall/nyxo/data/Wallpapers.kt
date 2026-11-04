@@ -38,7 +38,7 @@ val THEME_PACKS = listOf(
 fun packById(id: String): ThemePack = THEME_PACKS.firstOrNull { it.id == id } ?: THEME_PACKS[0]
 
 /** Wallpaper fitted to the screen, plus a soft pre-blurred copy used behind glass panels. */
-class LoadedWallpaper(val sharp: ImageBitmap, val blurred: ImageBitmap, val blurScale: Int)
+class LoadedWallpaper(val sharp: ImageBitmap, val blurred: ImageBitmap, val blurScale: Int, val vibrant: Color)
 
 object Wallpapers {
     private const val CUSTOM_FILE = "wallpaper_custom.jpg"
@@ -46,6 +46,8 @@ object Wallpapers {
     private var cache: LoadedWallpaper? = null
 
     fun customFile(context: Context) = File(context.filesDir, CUSTOM_FILE)
+
+    fun forget() = synchronized(this) { cacheKey = null; cache = null }
 
     /** Copies a photo the user picked into Nyxo's private storage. */
     suspend fun importCustom(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
@@ -72,13 +74,41 @@ object Wallpapers {
                 .copy(Bitmap.Config.ARGB_8888, true)
             boxBlur(small, 2)
             boxBlur(small, 2)
-            LoadedWallpaper(fitted.asImageBitmap(), small.asImageBitmap(), scale)
+            LoadedWallpaper(fitted.asImageBitmap(), small.asImageBitmap(), scale, vibrantOf(small, pack.accent))
         }
         synchronized(this) {
             cacheKey = key
             cache = loaded
         }
         return loaded
+    }
+
+    /**
+     * The wallpaper's most striking colour: hues are weighted by how saturated and bright they are,
+     * then the strongest hue is returned bright enough to read on black.
+     */
+    private fun vibrantOf(bmp: Bitmap, fallback: Color): Color {
+        val w = bmp.width
+        val h = bmp.height
+        val px = IntArray(w * h)
+        bmp.getPixels(px, 0, w, 0, 0, w, h)
+        val buckets = FloatArray(36)
+        val hsv = FloatArray(3)
+        for (c in px) {
+            android.graphics.Color.colorToHSV(c, hsv)
+            val weight = hsv[1] * hsv[1] * hsv[2]
+            if (hsv[1] < 0.25f || hsv[2] < 0.2f) continue
+            buckets[(hsv[0] / 10f).toInt().coerceIn(0, 35)] += weight
+        }
+        var best = -1
+        var bestW = 0f
+        for (i in buckets.indices) {
+            val around = buckets[i] + 0.5f * (buckets[(i + 35) % 36] + buckets[(i + 1) % 36])
+            if (around > bestW) { bestW = around; best = i }
+        }
+        if (best < 0 || bestW < px.size * 0.004f) return fallback
+        val argb = android.graphics.Color.HSVToColor(floatArrayOf(best * 10f + 5f, 0.62f, 1f))
+        return Color(argb)
     }
 
     /** A small preview for the theme picker. */

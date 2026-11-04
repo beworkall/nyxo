@@ -102,19 +102,21 @@ fun HomeScreen(vm: LauncherViewModel, ripples: Ripples? = null) {
     val activity = context as? Activity
     val prefs = vm.prefs
     val hidden = prefs.hidden.value
+    val focusOn = prefs.focusOn.value
+    val focusApps = prefs.focusApps.value
     val byKey = remember(vm.apps) { vm.apps.associateBy { it.key } }
-    val visibleApps = remember(vm.apps, hidden) { vm.apps.filter { it.key !in hidden } }
+    val visibleApps = remember(vm.apps, hidden, focusOn, focusApps) { vm.apps.filter { !vm.isAway(it) } }
     val stacks = vm.stacks
     val entries: List<HomeEntry> = prefs.home.value.mapNotNull { k ->
         if (k.startsWith(STACK_PREFIX)) {
             val s = stacks.firstOrNull { it.id == k.removePrefix(STACK_PREFIX) } ?: return@mapNotNull null
-            val apps = s.keys.mapNotNull { byKey[it] }.filter { it.key !in hidden }
+            val apps = s.keys.mapNotNull { byKey[it] }.filter { !vm.isAway(it) }
             if (apps.isEmpty()) null else StackItem(s, apps)
         } else {
-            byKey[k]?.takeIf { it.key !in hidden }?.let { AppItem(it) }
+            byKey[k]?.takeIf { !vm.isAway(it) }?.let { AppItem(it) }
         }
     }
-    val dock = prefs.dock.value.mapNotNull { byKey[it] }
+    val dock = prefs.dock.value.mapNotNull { byKey[it] }.filter { !vm.isAway(it) }
     val threshold = with(LocalDensity.current) { 72.dp.toPx() }
     val gestureHandler: (String) -> Unit = { gesture -> handleGesture(vm, context, gesture) }
     val onGesture = rememberUpdatedState(gestureHandler)
@@ -161,11 +163,7 @@ fun HomeScreen(vm: LauncherViewModel, ripples: Ripples? = null) {
     ) {
         Spacer(Modifier.height(40.dp))
         Box(Modifier.padding(horizontal = 22.dp)) {
-            Clock(
-                h24 = prefs.clock24.value,
-                onTime = { Actions.alarms(context) },
-                onDate = { Actions.calendar(context) },
-            )
+            NyxoClock(vm)
         }
         if (!vm.isDefaultHome && activity != null) {
             Box(Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp)) {
@@ -249,6 +247,7 @@ private fun handleGesture(vm: LauncherViewModel, context: Context, gesture: Stri
             "radar" -> {
                 vm.screen = Screen.Radar
             }
+            "focus" -> vm.toggleFocus()
             else -> Unit
         }
         "long" -> if (p.longPressSettings.value) Actions.openNyxoSettings(context)
@@ -306,6 +305,7 @@ private fun ListAppRow(vm: LauncherViewModel, app: AppEntry, indent: Dp = 0.dp, 
             style = TextStyle(
                 fontSize = if (big) 24.sp else 19.sp,
                 fontWeight = FontWeight.Light,
+                fontFamily = LocalNyxoFont.current,
                 color = Ink,
                 shadow = RowShadow,
             ),
@@ -390,7 +390,7 @@ private fun ListStackRow(vm: LauncherViewModel, item: StackItem) {
             Spacer(Modifier.width(14.dp))
             Text(
                 item.stack.name,
-                style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Light, color = Ink, shadow = RowShadow),
+                style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Light, color = Ink, fontFamily = LocalNyxoFont.current, shadow = RowShadow),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -472,7 +472,7 @@ private fun StackCell(vm: LauncherViewModel, item: StackItem, modifier: Modifier
         Spacer(Modifier.height(6.dp))
         Text(
             item.stack.name,
-            style = TextStyle(fontSize = 12.sp, color = Ink, shadow = RowShadow),
+            style = TextStyle(fontSize = 12.sp, color = Ink, fontFamily = LocalNyxoFont.current, shadow = RowShadow),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
@@ -512,55 +512,5 @@ private fun Dock(vm: LauncherViewModel, apps: List<AppEntry>) {
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {
         for (app in apps) AppCell(vm, app, Modifier.weight(1f), showLabel = false, iconSize = 52.dp)
-    }
-}
-
-// ---------------------------------------------------------------- clock
-
-@Composable
-private fun Clock(h24: Boolean, onTime: () -> Unit, onDate: () -> Unit) {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    // Wakes once a minute, and only while the home screen is visible.
-    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(lifecycle) {
-        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            while (true) {
-                now = System.currentTimeMillis()
-                delay(60_000L - now % 60_000L + 50L)
-            }
-        }
-    }
-    val minute = now / 60_000L
-    val time = remember(minute, h24) {
-        SimpleDateFormat(if (h24) "HH:mm" else "h:mm", Locale.getDefault()).format(Date(now))
-    }
-    val date = remember(minute) {
-        SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date(now))
-    }
-    Column {
-        Text(
-            time,
-            style = TextStyle(
-                fontSize = 86.sp,
-                fontWeight = FontWeight.Thin,
-                color = Ink,
-                letterSpacing = (-3).sp,
-                shadow = ClockShadow,
-            ),
-            modifier = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onTime),
-        )
-        Text(
-            date.uppercase(),
-            style = TextStyle(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = accent(),
-                letterSpacing = 3.sp,
-                shadow = ClockShadow,
-            ),
-            modifier = Modifier
-                .padding(start = 4.dp)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDate),
-        )
     }
 }
