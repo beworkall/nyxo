@@ -5,6 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -57,9 +60,136 @@ val CLOCK_STYLES = listOf(
     "thin" to "Thin",
     "bold" to "Bold",
     "stacked" to "Stacked",
+    "split" to "Split",
+    "neon" to "Neon",
+    "ring" to "Ring",
+    "flip" to "Flip",
+    "lcd" to "Digital",
+    "minimal" to "Minimal",
     "analog" to "Analog",
     "words" to "Words",
 )
+
+/**
+ * Draws the time in one clock style. [scale] shrinks it for the previews in Nyxo Settings.
+ */
+@Composable
+fun ClockFace(
+    style: String,
+    now: Long,
+    h24: Boolean,
+    font: FontFamily,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    scale: Float = 1f,
+) {
+    val minute = now / 60_000L
+    fun sp(v: Float) = (v * scale).sp
+    fun dp(v: Float) = (v * scale).dp
+    val hh = remember(minute, h24) { SimpleDateFormat(if (h24) "HH" else "h", Locale.getDefault()).format(Date(now)) }
+    val hh2 = remember(minute, h24) { SimpleDateFormat(if (h24) "HH" else "hh", Locale.getDefault()).format(Date(now)) }
+    val mm = remember(minute) { SimpleDateFormat("mm", Locale.getDefault()).format(Date(now)) }
+    val shadow = if (scale < 1f) null else ClockShadow
+    when (style) {
+        "analog" -> AnalogClock(now, accent, modifier, dp(150f))
+        "words" -> Text(
+            remember(minute) { timeInWords(now) },
+            style = TextStyle(fontSize = sp(44f), lineHeight = sp(48f), fontWeight = FontWeight.Light, color = Ink, fontFamily = font, shadow = shadow),
+            modifier = modifier,
+        )
+        "stacked" -> Column(modifier) {
+            Text(hh2, style = TextStyle(fontSize = sp(92f), lineHeight = sp(84f), fontWeight = FontWeight.Bold, color = Ink, fontFamily = font, shadow = shadow))
+            Text(mm, style = TextStyle(fontSize = sp(92f), lineHeight = sp(84f), fontWeight = FontWeight.Bold, color = accent, fontFamily = font, shadow = shadow))
+        }
+        "split" -> Row(modifier, verticalAlignment = Alignment.Bottom) {
+            Text(hh, style = TextStyle(fontSize = sp(88f), fontWeight = FontWeight.Black, color = Ink, fontFamily = font, letterSpacing = sp(-2f), shadow = shadow))
+            Spacer(Modifier.width(dp(10f)))
+            Text(mm, style = TextStyle(fontSize = sp(88f), fontWeight = FontWeight.Thin, color = accent, fontFamily = font, letterSpacing = sp(-2f), shadow = shadow))
+        }
+        "neon" -> Text(
+            "$hh:$mm",
+            style = TextStyle(
+                fontSize = sp(84f),
+                fontWeight = FontWeight.Light,
+                color = Color.White,
+                fontFamily = font,
+                letterSpacing = sp(-2f),
+                shadow = Shadow(color = accent, offset = Offset.Zero, blurRadius = 38f * scale),
+            ),
+            modifier = modifier,
+        )
+        "ring" -> androidx.compose.foundation.layout.Box(modifier.size(dp(160f)), contentAlignment = Alignment.Center) {
+            val cal = remember(minute) { Calendar.getInstance().apply { timeInMillis = now } }
+            val progress = cal.get(Calendar.MINUTE) / 60f
+            Canvas(Modifier.fillMaxSize()) {
+                val w = 5.dp.toPx() * scale.coerceAtLeast(0.5f)
+                drawCircle(Color.White.copy(alpha = 0.12f), radius = size.minDimension / 2f - w / 2f, style = Stroke(w))
+                drawArc(
+                    accent, -90f, 360f * progress.coerceAtLeast(0.01f), useCenter = false,
+                    topLeft = Offset(w / 2, w / 2),
+                    size = androidx.compose.ui.geometry.Size(size.width - w, size.height - w),
+                    style = Stroke(w, cap = StrokeCap.Round),
+                )
+            }
+            Text("$hh:$mm", style = TextStyle(fontSize = sp(42f), fontWeight = FontWeight.Medium, color = Ink, fontFamily = font))
+        }
+        "flip" -> Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+            FlipCard(hh2, font, scale)
+            Spacer(Modifier.width(dp(8f)))
+            FlipCard(mm, font, scale, accent)
+        }
+        "lcd" -> androidx.compose.foundation.layout.Box(modifier) {
+            val lcd = TextStyle(fontSize = sp(76f), fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, letterSpacing = sp(2f))
+            Text("88:88", style = lcd.copy(color = accent.copy(alpha = 0.10f)))
+            Text(
+                hh2 + ":" + mm,
+                style = lcd.copy(color = accent, shadow = Shadow(accent.copy(alpha = 0.7f), Offset.Zero, 22f * scale)),
+            )
+        }
+        "minimal" -> Row(modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.foundation.layout.Box(
+                Modifier.width(dp(4f)).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(accent),
+            )
+            Spacer(Modifier.width(dp(12f)))
+            Text("$hh:$mm", style = TextStyle(fontSize = sp(48f), fontWeight = FontWeight.Medium, color = Ink, fontFamily = font, shadow = shadow))
+        }
+        else -> {
+            val bold = style == "bold"
+            Text(
+                "$hh:$mm",
+                style = TextStyle(
+                    fontSize = sp(if (bold) 78f else 86f),
+                    fontWeight = if (bold) FontWeight.Black else FontWeight.Thin,
+                    color = Ink,
+                    fontFamily = font,
+                    letterSpacing = sp(if (bold) -2f else -3f),
+                    shadow = shadow,
+                ),
+                modifier = modifier,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FlipCard(text: String, font: FontFamily, scale: Float, color: Color = Ink) {
+    androidx.compose.foundation.layout.Box(
+        Modifier
+            .clip(RoundedCornerShape((14 * scale).dp))
+            .background(Color(0xFF12161F))
+            .padding(horizontal = (14 * scale).dp, vertical = (6 * scale).dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, style = TextStyle(fontSize = (70 * scale).sp, fontWeight = FontWeight.Bold, color = color, fontFamily = font))
+        // The hinge line across the middle of a flip card.
+        androidx.compose.foundation.layout.Box(
+            Modifier.matchParentSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().height(2.dp).background(Color.Black.copy(alpha = 0.7f)))
+        }
+    }
+}
 
 /** The home screen clock. Wakes once a minute and only while the home screen is visible. */
 @Composable
@@ -91,38 +221,14 @@ fun NyxoClock(vm: LauncherViewModel) {
     val accent = accent()
 
     Column {
-        when (p.clockStyle.value) {
-            "analog" -> AnalogClock(now, accent, Modifier.clickable(quiet, null, onClick = openAlarms))
-            "words" -> Text(
-                remember(minute) { timeInWords(now) },
-                style = TextStyle(fontSize = 44.sp, lineHeight = 48.sp, fontWeight = FontWeight.Light, color = Ink, fontFamily = font, shadow = ClockShadow),
-                modifier = Modifier.clickable(quiet, null, onClick = openAlarms),
-            )
-            "stacked" -> {
-                val hh = remember(minute, h24) { SimpleDateFormat(if (h24) "HH" else "hh", Locale.getDefault()).format(Date(now)) }
-                val mm = remember(minute) { SimpleDateFormat("mm", Locale.getDefault()).format(Date(now)) }
-                Column(Modifier.clickable(quiet, null, onClick = openAlarms)) {
-                    Text(hh, style = TextStyle(fontSize = 92.sp, lineHeight = 84.sp, fontWeight = FontWeight.Bold, color = Ink, fontFamily = font, shadow = ClockShadow))
-                    Text(mm, style = TextStyle(fontSize = 92.sp, lineHeight = 84.sp, fontWeight = FontWeight.Bold, color = accent, fontFamily = font, shadow = ClockShadow))
-                }
-            }
-            else -> {
-                val bold = p.clockStyle.value == "bold"
-                val time = remember(minute, h24) { SimpleDateFormat(if (h24) "HH:mm" else "h:mm", Locale.getDefault()).format(Date(now)) }
-                Text(
-                    time,
-                    style = TextStyle(
-                        fontSize = if (bold) 78.sp else 86.sp,
-                        fontWeight = if (bold) FontWeight.Black else FontWeight.Thin,
-                        color = Ink,
-                        fontFamily = font,
-                        letterSpacing = if (bold) (-2).sp else (-3).sp,
-                        shadow = ClockShadow,
-                    ),
-                    modifier = Modifier.clickable(quiet, null, onClick = openAlarms),
-                )
-            }
-        }
+        ClockFace(
+            style = p.clockStyle.value,
+            now = now,
+            h24 = h24,
+            font = font,
+            accent = accent,
+            modifier = Modifier.clickable(quiet, null, onClick = openAlarms),
+        )
         Text(
             date.uppercase(),
             style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent, letterSpacing = 3.sp, shadow = ClockShadow),
@@ -162,11 +268,11 @@ fun NyxoClock(vm: LauncherViewModel) {
 }
 
 @Composable
-private fun AnalogClock(now: Long, accent: Color, modifier: Modifier) {
+private fun AnalogClock(now: Long, accent: Color, modifier: Modifier, size: androidx.compose.ui.unit.Dp = 150.dp) {
     val cal = remember(now / 60_000L) { Calendar.getInstance().apply { timeInMillis = now } }
     val h = cal.get(Calendar.HOUR) + cal.get(Calendar.MINUTE) / 60f
     val m = cal.get(Calendar.MINUTE).toFloat()
-    Canvas(modifier.padding(vertical = 6.dp).size(150.dp)) {
+    Canvas(modifier.padding(vertical = 6.dp).size(size)) {
         val c = center
         val r = size.minDimension / 2f
         drawCircle(Color.Black.copy(alpha = 0.35f), r)

@@ -536,9 +536,10 @@ private fun HomeLayoutPage(vm: LauncherViewModel) {
                     ) { p.columns.value = it.toInt() }
                 }
             }
-            SectionLabel("Clock")
+            SectionLabel("Clock style")
+            ClockGallery(vm)
+            Spacer(Modifier.height(8.dp))
             Group {
-                ChipGrid("Style", CLOCK_STYLES, p.clockStyle.value) { p.clockStyle.value = it }
                 SwitchRow("24-hour clock", null, p.clock24.value) { p.clock24.value = it }
                 CalendarLineRow(vm)
             }
@@ -1309,6 +1310,46 @@ private fun BackupPage(vm: LauncherViewModel, activity: SettingsActivity) {
                 color = Faint, fontSize = 12.sp, lineHeight = 17.sp,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
             )
+        }
+    }
+}
+
+
+/** Every clock style, drawn live with your accent and font. Tap one to use it. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ClockGallery(vm: LauncherViewModel) {
+    val p = vm.prefs
+    val now = remember { System.currentTimeMillis() }
+    val font = remember(p.font.value) { com.beworkall.nyxo.ui.fontFamilyOf(p.font.value) }
+    val accentColor = accent()
+    androidx.compose.foundation.layout.FlowRow(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        maxItemsInEachRow = 2,
+    ) {
+        for ((id, label) in CLOCK_STYLES) {
+            val on = p.clockStyle.value == id
+            val shape = RoundedCornerShape(18.dp)
+            Column(
+                Modifier
+                    .weight(1f)
+                    .clip(shape)
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .border(if (on) 2.dp else 1.dp, if (on) accentColor else Color.White.copy(alpha = 0.08f), shape)
+                    .clickable { p.clockStyle.value = id; Sound.play(Sfx.TAP) }
+                    .padding(12.dp),
+            ) {
+                Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.CenterStart) {
+                    com.beworkall.nyxo.ui.ClockFace(id, now, p.clock24.value, font, accentColor, scale = 0.42f)
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, color = if (on) accentColor else Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    if (on) Text("IN USE", color = accentColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }

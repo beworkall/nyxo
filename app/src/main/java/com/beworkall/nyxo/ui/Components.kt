@@ -2,6 +2,10 @@
 
 package com.beworkall.nyxo.ui
 
+import com.beworkall.nyxo.system.Sound
+import com.beworkall.nyxo.system.Sfx
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
@@ -528,22 +532,56 @@ fun RowScope.StatTile(label: String, count: Int, color: Color) {
     }
 }
 
+/** Shown until Nyxo is the default home app. It breathes with a soft glow so it's hard to miss. */
 @Composable
 fun DefaultBanner(onClick: () -> Unit) {
+    val accentColor = accent()
+    val motion = LocalLook.current.motion
+    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "defaultGlow").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "pulse",
+    )
+    val glow = if (motion) pulse else 0.6f
+    val shape = RoundedCornerShape(18.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(accent().copy(alpha = 0.12f))
-            .border(1.dp, accent().copy(alpha = 0.5f), RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .drawBehind {
+                // Soft halo around the card.
+                for (i in 1..4) {
+                    val spread = (i * 5).dp.toPx() * (0.6f + 0.4f * glow)
+                    drawRoundRect(
+                        color = accentColor.copy(alpha = (0.10f - i * 0.02f) * (0.5f + glow)),
+                        topLeft = androidx.compose.ui.geometry.Offset(-spread, -spread),
+                        size = androidx.compose.ui.geometry.Size(size.width + spread * 2, size.height + spread * 2),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx() + spread),
+                    )
+                }
+            }
+            .clip(shape)
+            .background(accentColor.copy(alpha = 0.14f + 0.08f * glow))
+            .border(1.5.dp, accentColor.copy(alpha = 0.55f + 0.45f * glow), shape)
+            .clickable { Sound.play(Sfx.TAP); onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(accentColor.copy(alpha = 0.5f + 0.5f * glow)),
+        )
+        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("Make Nyxo your home screen", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text("Tap to set it as the default launcher", color = Muted, fontSize = 13.sp)
+            Text("Nyxo isn't your home screen yet", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text("Tap to make it the default, so Home brings you here", color = Muted, fontSize = 13.sp)
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = accent())
+        Text("SET", color = Color(0xFF07090D), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(accentColor).padding(horizontal = 12.dp, vertical = 6.dp))
     }
 }
