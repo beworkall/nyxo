@@ -268,11 +268,11 @@ fun NyxoClock(vm: LauncherViewModel) {
 }
 
 @Composable
-private fun AnalogClock(now: Long, accent: Color, modifier: Modifier, size: androidx.compose.ui.unit.Dp = 150.dp) {
+private fun AnalogClock(now: Long, accent: Color, modifier: Modifier, diameter: androidx.compose.ui.unit.Dp = 150.dp) {
     val cal = remember(now / 60_000L) { Calendar.getInstance().apply { timeInMillis = now } }
     val h = cal.get(Calendar.HOUR) + cal.get(Calendar.MINUTE) / 60f
     val m = cal.get(Calendar.MINUTE).toFloat()
-    Canvas(modifier.padding(vertical = 6.dp).size(size)) {
+    Canvas(modifier.padding(vertical = 6.dp).size(diameter)) {
         val c = center
         val r = size.minDimension / 2f
         drawCircle(Color.Black.copy(alpha = 0.35f), r)

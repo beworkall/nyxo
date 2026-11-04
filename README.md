@@ -6,12 +6,23 @@
 
 **A dark, private Android home screen that shows you what your apps are really doing.**
 
+[![Latest release](https://img.shields.io/github/v/release/beworkall/nyxo?label=latest%20APK&color=9D8CFF&labelColor=0B0E14)](https://github.com/beworkall/nyxo/releases/latest)
 [![Build](https://github.com/beworkall/nyxo/actions/workflows/build.yml/badge.svg)](https://github.com/beworkall/nyxo/actions/workflows/build.yml)
-[![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-9D8CFF.svg)](LICENSE)
-[![Internet permission](https://img.shields.io/badge/internet%20permission-NONE-2ECC71)](app/src/main/AndroidManifest.xml)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-9D8CFF.svg?labelColor=0B0E14)](LICENSE)
+[![Internet permission](https://img.shields.io/badge/internet%20permission-NONE-2ECC71?labelColor=0B0E14)](app/src/main/AndroidManifest.xml)
 [![Android](https://img.shields.io/badge/Android-9%2B-0B0E14?logo=android)](#install)
 
-### [Download the latest APK](https://github.com/beworkall/nyxo/releases/latest)
+<br>
+
+<img src="docs/demo-strip.gif" width="270" alt="Sliding a thumb along Nyxo's letter strip to open an app" />
+&nbsp;&nbsp;
+<img src="docs/demo-themes.gif" width="270" alt="Switching between Nyxo theme packs and clock styles" />
+
+<sub>Slide your thumb along the letters to reach any app · Six theme packs, eleven clock styles</sub>
+
+### [Download the latest APK](https://github.com/beworkall/nyxo/releases/latest/download/Nyxo.apk)
+
+<sub>v0.4.1 · built and signed automatically on every push · [all releases](https://github.com/beworkall/nyxo/releases)</sub>
 
 </div>
 
@@ -34,7 +45,8 @@ call Nyxo could ever make. You can check it yourself in [`AndroidManifest.xml`](
 | **Sounds & motion** | Soft taps, glass chimes and water drops, springy panels and apps that open from their icon. Silent on vibrate or mute. |
 | **Widgets & stacks** | Any app's widgets, plus Nyxo's own: battery, media volume, privacy score and a quick note. Stack up to four in one slot and swipe between them. |
 | **Icon packs & themed icons** | Use any Nova/ADW icon pack from the Play Store, or tint every icon to your accent. |
-| **Clock & fonts** | Thin, bold, stacked, analog or words ("quarter past ten"), your next calendar event under the date, and five system fonts. |
+| **Clock gallery** | Eleven clock styles with live previews: thin, bold, stacked, split, neon, ring, flip, digital, minimal, analog and words ("quarter past ten"). Your next calendar event can sit under the date. |
+| **Fonts** | Five fonts that ship with every phone, for the clock and app names. |
 | **Theme Studio** | Save your theme, clock, font and icons as a look and switch between looks in one tap. |
 | **Accent colours** | From the theme, from your wallpaper, from Material You, or your own pick. |
 | **Focus mode** | Pause the apps you pick. They disappear until you end focus. |
@@ -59,7 +71,7 @@ call Nyxo could ever make. You can check it yourself in [`AndroidManifest.xml`](
 
 1. Open [**Releases**](https://github.com/beworkall/nyxo/releases/latest) and download `Nyxo.apk`.
 2. Open it on your phone and allow installs from your browser or file manager if Android asks.
-3. Press **Home** and choose **Nyxo**, or open Nyxo and tap **Make Nyxo your home screen**.
+3. Press **Home** and choose **Nyxo**, or tap the glowing **Nyxo isn't your home screen yet** card.
 4. Want your old home screen back? Open **Nyxo Settings → Switch home app**.
 
 Every push to `main` builds a new APK and publishes it to the latest release automatically.
