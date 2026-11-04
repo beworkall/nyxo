@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -244,7 +245,7 @@ fun ThumbAlphabet(
                             .padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        AppIconImage(app, 32.dp)
+                        key(app.key) { AppIconImage(app, 32.dp) }
                         Spacer(Modifier.width(12.dp))
                         Text(
                             app.label,

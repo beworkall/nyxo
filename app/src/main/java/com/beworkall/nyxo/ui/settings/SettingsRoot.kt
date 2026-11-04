@@ -759,11 +759,6 @@ private fun PrivacyPage(vm: LauncherViewModel, activity: SettingsActivity) {
                     }
                 }
             }
-            Spacer(Modifier.height(6.dp))
-            InfoCard(
-                "Nyxo has no internet access",
-                "No accessibility service, no overlays, no tracking. Everything Nyxo checks stays on your phone.",
-            )
         }
     }
 }
@@ -772,17 +767,10 @@ private fun PrivacyPage(vm: LauncherViewModel, activity: SettingsActivity) {
 
 @Composable
 private fun AboutPage(vm: LauncherViewModel, activity: SettingsActivity) {
-    val context = LocalContext.current
     var confirm by remember { mutableStateOf(false) }
     SettingsList {
         item {
             AboutCard()
-            Spacer(Modifier.height(6.dp))
-            Group {
-                SettingRow("Version", BuildConfig.VERSION_NAME)
-                SettingRow("Source code", "github.com/beworkall/nyxo") { Actions.url(context, "https://github.com/beworkall/nyxo") }
-                SettingRow("Instagram", "@beworkall") { Actions.url(context, "https://instagram.com/beworkall") }
-            }
             SectionLabel("Setup")
             Group {
                 SettingRow("Restart first-time setup", "Walk through the welcome steps again") { confirm = true }
@@ -813,23 +801,63 @@ private fun AboutPage(vm: LauncherViewModel, activity: SettingsActivity) {
 
 @Composable
 private fun AboutCard() {
+    val context = LocalContext.current
     Column(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .nyxoSurface(RoundedCornerShape(24.dp))
-            .padding(horizontal = 20.dp, vertical = 26.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(18.dp),
     ) {
-        Image(
-            painter = androidx.compose.ui.res.painterResource(com.beworkall.nyxo.R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            modifier = Modifier.size(84.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF07090D)),
-        )
-        Spacer(Modifier.height(12.dp))
-        Text("Nyxo", color = Ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text("A private home screen for Android", color = Muted, fontSize = 14.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painter = androidx.compose.ui.res.painterResource(com.beworkall.nyxo.R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF07090D)),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Nyxo", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "v" + BuildConfig.VERSION_NAME,
+                        color = accent(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(accent().copy(alpha = 0.14f))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+                Text("by BEwork", color = Muted, fontSize = 14.sp)
+            }
+        }
         Spacer(Modifier.height(16.dp))
-        Text("Designed and built by BEwork", color = accent(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LinkChip("GitHub", Modifier.weight(1f)) { Actions.url(context, "https://github.com/beworkall/nyxo") }
+            LinkChip("Instagram", Modifier.weight(1f)) { Actions.url(context, "https://instagram.com/beworkall") }
+            LinkChip("Share", Modifier.weight(1f)) {
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_TEXT, "Nyxo, a private home screen for Android: https://github.com/beworkall/nyxo/releases/latest")
+                Actions.start(context, Intent.createChooser(send, "Share Nyxo"))
+            }
+        }
+    }
+}
+
+@Composable
+private fun LinkChip(label: String, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(PanelHi)
+            .clickable { Sound.play(Sfx.TAP); onClick() }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }

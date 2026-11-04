@@ -125,7 +125,9 @@ fun riskColor(risk: Risk?): Color? = when (risk) {
 fun AppIconImage(app: AppEntry, size: Dp, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val px = with(LocalDensity.current) { size.roundToPx() }
+    // Keyed on the app: when a row is reused for a different app (thumb strip, search), the old icon is dropped.
     val icon by produceState(IconCache.peek(app, px), app.key, px) {
+        value = IconCache.peek(app, px)
         if (value == null) value = IconCache.load(context, app, px)
     }
     val bitmap = icon

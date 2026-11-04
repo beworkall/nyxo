@@ -220,10 +220,6 @@ fun RadarScreen(vm: LauncherViewModel) {
             }
             item {
                 Column(Modifier.padding(top = 18.dp)) {
-                    InfoCard(
-                        "Checked on this phone only",
-                        "Nyxo reads permission settings locally. It has no internet permission, so nothing it sees can leave your phone.",
-                    )
                     ActionButton(if (vm.scanning) "Scanning…" else "Scan again") { vm.refresh(immediate = true) }
                 }
             }
@@ -283,7 +279,7 @@ fun RadarDetailDialog(vm: LauncherViewModel, result: RadarResult) {
             }
             Spacer(Modifier.height(16.dp))
             if (result.findings.isEmpty()) {
-                InfoCard("No sensitive access", "This app has none of the permissions Nyxo watches for.")
+                Text("This app has none of the access Nyxo watches for.", color = Muted, fontSize = 14.sp)
             }
             for (f in result.findings) {
                 Row(Modifier.padding(vertical = 8.dp)) {

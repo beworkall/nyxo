@@ -206,11 +206,10 @@ private fun PrivacyDotsStep(vm: LauncherViewModel) {
     Legend(null, "No dot", "None of the above.")
 
     Spacer(Modifier.height(18.dp))
-    InfoCard(
-        "Why it matters",
-        "Scam and stalkerware apps hide in plain sight. To read your messages and one-time codes they need exactly " +
-            "these permissions, so a red dot on an app you don't recognise is worth a look.",
-        RiskHigh,
+    Text(
+        "Scam and stalkerware apps need exactly these permissions to read your messages and one-time codes. " +
+            "A red dot on an app you don't recognise is worth a look.",
+        color = Muted, fontSize = 14.sp, lineHeight = 20.sp,
     )
 
     val results = vm.radar.values
@@ -221,12 +220,8 @@ private fun PrivacyDotsStep(vm: LauncherViewModel) {
         full == 0 && sensitive == 0 -> "On this phone right now: no apps with full or sensitive access."
         else -> "On this phone right now: $full with full access and $sensitive with sensitive access."
     }
-    InfoCard(
-        summary,
-        "Checked on this phone only. Tap the radar icon in the app drawer any time to see the full list, " +
-            "even if you keep the dots off.",
-        accent(),
-    )
+    Spacer(Modifier.height(14.dp))
+    Text(summary, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, lineHeight = 21.sp)
 }
 
 @Composable
@@ -345,12 +340,7 @@ private fun FinishStep(vm: LauncherViewModel) {
     Bullet("3", "Long-press any app to pin it, stack it, hide it or check its privacy")
     Spacer(Modifier.height(18.dp))
     if (!vm.isDefaultHome && activity != null) {
-        InfoCard(
-            "Make Nyxo your home screen",
-            "So the Home button brings you here. Android will ask you to confirm.",
-            accent(),
-        )
-        ActionButton("Set as home screen") {
+        DefaultBanner {
             // This is the last step, so setup is done. Android restarts the home app after you confirm.
             vm.prefs.onboarded.value = true
             vm.prefs.onboardStep.value = 0
