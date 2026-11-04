@@ -31,8 +31,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,16 +53,18 @@ private const val STEPS = 5
 /** First-run setup. Every choice here can be changed later in Settings. */
 @Composable
 fun Onboarding(vm: LauncherViewModel) {
-    var step by rememberSaveable { mutableIntStateOf(0) }
     val p = vm.prefs
+    // Saved in prefs, so setting Nyxo as the home app (which restarts it) never sends you back to the start.
+    val step = p.onboardStep.value.coerceIn(0, STEPS - 1)
+    fun go(to: Int) { p.onboardStep.value = to }
 
     fun next() {
         // The hand choice only matters for the one-handed layout.
-        step = if (step == 2 && p.gridLayout.value) 4 else (step + 1).coerceAtMost(STEPS - 1)
+        go(if (step == 2 && p.gridLayout.value) 4 else (step + 1).coerceAtMost(STEPS - 1))
     }
 
     fun previous() {
-        step = if (step == 4 && p.gridLayout.value) 2 else (step - 1).coerceAtLeast(0)
+        go(if (step == 4 && p.gridLayout.value) 2 else (step - 1).coerceAtLeast(0))
     }
 
     BackHandler(enabled = step > 0) { previous() }
@@ -107,7 +107,10 @@ fun Onboarding(vm: LauncherViewModel) {
                     }
                 }
                 2, 3 -> ActionButton("Continue", primary = true) { next() }
-                else -> ActionButton("Start using Nyxo", primary = true) { p.onboarded.value = true }
+                else -> ActionButton("Start using Nyxo", primary = true) {
+                    p.onboarded.value = true
+                    p.onboardStep.value = 0
+                }
             }
         }
     }
@@ -158,9 +161,9 @@ private fun WelcomeStep() {
         "Nyxo is fast, black and built for one hand. It also tells you which apps can see more than they should.",
     )
     Spacer(Modifier.height(24.dp))
-    Bullet("🌑", "Pure black screen that saves battery on AMOLED")
-    Bullet("👍", "Reach every app with your thumb")
-    Bullet("📵", "No internet permission. Nothing you do here can leave your phone")
+    Bullet("1", "Pure black screen that saves battery on AMOLED")
+    Bullet("2", "Reach every app with your thumb")
+    Bullet("3", "No internet permission. Nothing you do here can leave your phone")
 }
 
 @Composable
@@ -169,7 +172,7 @@ private fun Bullet(icon: String, text: String) {
         Box(
             Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Panel),
             contentAlignment = Alignment.Center,
-        ) { Text(icon, fontSize = 18.sp) }
+        ) { Text(icon, color = accent(), fontSize = 16.sp, fontWeight = FontWeight.Bold) }
         Spacer(Modifier.width(14.dp))
         Text(text, color = Ink, fontSize = 15.sp, lineHeight = 21.sp)
     }
@@ -283,7 +286,7 @@ private fun Legend(color: Color?, title: String, body: String) {
 @Composable
 private fun HomeStyleStep(vm: LauncherViewModel) {
     val p = vm.prefs
-    StepTitle("Home screen", "Pick your style.", "You can switch any time in Settings.")
+    StepTitle("Home screen", "Pick your style.", "You can switch any time in Nyxo Settings.")
     Spacer(Modifier.height(22.dp))
     OptionCard(
         "One-handed",
@@ -331,15 +334,15 @@ private fun HandStep(vm: LauncherViewModel) {
 @Composable
 private fun FinishStep(vm: LauncherViewModel) {
     val activity = LocalContext.current as? Activity
-    StepTitle("All set", "Three things to try.", "That's all there is to learn.")
+    StepTitle("All set", "Three things to try.", "You can change everything later in Nyxo Settings.")
     Spacer(Modifier.height(22.dp))
     if (!vm.prefs.gridLayout.value) {
-        Bullet("👍", "Slide your thumb along the letters on the edge, then slide onto an app and let go")
+        Bullet("1", "Slide your thumb along the letters on the edge, then slide onto an app and let go")
     } else {
-        Bullet("☝️", "Swipe up for all your apps")
+        Bullet("1", "Swipe up for all your apps")
     }
-    Bullet("🔎", "Swipe down to search apps, contacts, settings, or type a sum like 15% of 2400")
-    Bullet("✋", "Long-press any app to pin it, stack it, hide it or check its privacy")
+    Bullet("2", "Swipe down to search apps, contacts, settings, or type a sum like 15% of 2400")
+    Bullet("3", "Long-press any app to pin it, stack it, hide it or check its privacy")
     Spacer(Modifier.height(18.dp))
     if (!vm.isDefaultHome && activity != null) {
         InfoCard(
@@ -347,7 +350,12 @@ private fun FinishStep(vm: LauncherViewModel) {
             "So the Home button brings you here. Android will ask you to confirm.",
             accent(),
         )
-        ActionButton("Set as home screen") { Actions.requestDefaultHome(activity) }
+        ActionButton("Set as home screen") {
+            // This is the last step, so setup is done. Android restarts the home app after you confirm.
+            vm.prefs.onboarded.value = true
+            vm.prefs.onboardStep.value = 0
+            Actions.requestDefaultHome(activity)
+        }
     }
 }
 

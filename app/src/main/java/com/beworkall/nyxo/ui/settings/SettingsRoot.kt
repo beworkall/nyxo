@@ -148,7 +148,7 @@ fun SettingsRoot(vm: LauncherViewModel, activity: SettingsActivity) {
         }
 
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wallpaper = rememberWallpaper(prefs, constraints.maxWidth, constraints.maxHeight)
+            val wallpaper = rememberWallpaper(prefs)
             val look = remember(prefs.panelStyle.value, wallpaper, prefs.motion.value) {
                 Look(
                     style = prefs.panelStyle.value,
@@ -370,12 +370,6 @@ private fun ThemePage(vm: LauncherViewModel) {
                             }
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "Wallpapers created by BEwork with Google Gemini.",
-                        color = Faint, fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    )
                 }
             }
         }
@@ -728,7 +722,7 @@ private fun DrawerSearchPage(vm: LauncherViewModel) {
     SettingsList {
         item {
             Group {
-                SwitchRow("Open keyboard with search", "Start typing as soon as search opens", p.autoKeyboard.value) {
+                SwitchRow("Keyboard on swipe up", "Off: the keyboard only opens when you tap the search bar, swipe down or double-tap", p.autoKeyboard.value) {
                     p.autoKeyboard.value = it
                 }
                 SwitchRow("Search contacts", "Show matching contacts in search. Asks for contacts access.", p.searchContacts.value) {
@@ -782,10 +776,12 @@ private fun AboutPage(vm: LauncherViewModel, activity: SettingsActivity) {
     var confirm by remember { mutableStateOf(false) }
     SettingsList {
         item {
+            AboutCard()
+            Spacer(Modifier.height(6.dp))
             Group {
-                SettingRow("Nyxo Launcher", "Version ${BuildConfig.VERSION_NAME}")
+                SettingRow("Version", BuildConfig.VERSION_NAME)
                 SettingRow("Source code", "github.com/beworkall/nyxo") { Actions.url(context, "https://github.com/beworkall/nyxo") }
-                SettingRow("Wallpapers", "Created by BEwork with Google Gemini")
+                SettingRow("Instagram", "@beworkall") { Actions.url(context, "https://instagram.com/beworkall") }
             }
             SectionLabel("Setup")
             Group {
@@ -802,6 +798,7 @@ private fun AboutPage(vm: LauncherViewModel, activity: SettingsActivity) {
             confirmButton = {
                 TextButton(onClick = {
                     confirm = false
+                    vm.prefs.onboardStep.value = 0
                     vm.prefs.onboarded.value = false
                     activity.startActivity(
                         Intent(activity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
@@ -811,5 +808,28 @@ private fun AboutPage(vm: LauncherViewModel, activity: SettingsActivity) {
             },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel", color = Muted) } },
         )
+    }
+}
+
+@Composable
+private fun AboutCard() {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .nyxoSurface(RoundedCornerShape(24.dp))
+            .padding(horizontal = 20.dp, vertical = 26.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Image(
+            painter = androidx.compose.ui.res.painterResource(com.beworkall.nyxo.R.drawable.ic_launcher_foreground),
+            contentDescription = null,
+            modifier = Modifier.size(84.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF07090D)),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Nyxo", color = Ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text("A private home screen for Android", color = Muted, fontSize = 14.sp)
+        Spacer(Modifier.height(16.dp))
+        Text("Designed and built by BEwork", color = accent(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
 }

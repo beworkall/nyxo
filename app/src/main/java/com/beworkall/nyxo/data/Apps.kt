@@ -4,6 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.content.pm.LauncherApps
+import android.os.Process
 import android.util.LruCache
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -75,7 +77,12 @@ object IconCache {
         peek(app, px)?.let { return it }
         val bitmap = withContext(Dispatchers.IO) {
             runCatching {
-                context.packageManager.getActivityIcon(app.component).toBitmap(px, px).asImageBitmap()
+                // Same source One UI Home uses, so every app shows its real (and themed) launcher icon.
+                val la = context.getSystemService(LauncherApps::class.java)
+                val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(app.component)
+                val drawable = runCatching { la?.resolveActivity(intent, Process.myUserHandle())?.getIcon(context.resources.displayMetrics.densityDpi) }.getOrNull()
+                    ?: context.packageManager.getActivityIcon(app.component)
+                drawable.toBitmap(px, px).asImageBitmap()
             }.getOrNull()
         }
         if (bitmap != null) cache.put(keyOf(app, px), bitmap)

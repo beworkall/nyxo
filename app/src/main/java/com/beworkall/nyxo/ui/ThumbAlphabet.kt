@@ -77,11 +77,13 @@ fun ThumbAlphabet(
 
     val stripW = with(density) { 36.dp.toPx() }
     val rowH = with(density) { 52.dp.toPx() }
-    val popupW = with(density) { 236.dp.toPx() }
+    val popupMaxW = with(density) { 236.dp.toPx() }
     val gap = with(density) { 10.dp.toPx() }
     val selectPad = with(density) { 14.dp.toPx() }
     val sigma = with(density) { 46.dp.toPx() }
-    val swell = with(density) { 54.dp.toPx() }
+    val swell = with(density) { 30.dp.toPx() }
+    val clearance = with(density) { 30.dp.toPx() } // room for the swollen letters
+    val badgeW = with(density) { 56.dp.toPx() }
 
     var touching by remember { mutableStateOf(false) }
     var waveY by remember { mutableFloatStateOf(0f) }
@@ -97,6 +99,7 @@ fun ThumbAlphabet(
     BoxWithConstraints(modifier) {
         val boxH = constraints.maxHeight.toFloat().coerceAtLeast(1f)
         val boxW = constraints.maxWidth.toFloat()
+        val popupW = minOf(popupMaxW, boxW - stripW - clearance - badgeW - gap * 3)
 
         fun currentApps(): List<AppEntry> {
             val ls = latestLetters.value
@@ -202,8 +205,9 @@ fun ThumbAlphabet(
                         .fillMaxWidth()
                         .graphicsLayer {
                             translationX = (if (leftHanded) 1f else -1f) * f * swell
-                            scaleX = 1f + f * 1.1f
-                            scaleY = 1f + f * 1.1f
+                            scaleX = 1f + f * 0.75f
+                            scaleY = 1f + f * 0.75f
+                            alpha = if (touching) 1f - 0.25f * (1f - f) else 1f
                         },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -221,7 +225,7 @@ fun ThumbAlphabet(
         val list = if (touching) currentApps() else emptyList()
         if (list.isNotEmpty()) {
             val top = popupTop(list.size)
-            val x = if (leftHanded) stripW + gap else boxW - stripW - gap - popupW
+            val x = if (leftHanded) stripW + clearance + gap else boxW - stripW - clearance - gap - popupW
             val letter = letters.getOrNull(letterIndex)
             Column(
                 Modifier
@@ -255,8 +259,8 @@ fun ThumbAlphabet(
             }
             if (letter != null) {
                 // Big letter badge next to the list so you always know where you are.
-                val badge = with(density) { 56.dp.toPx() }
-                val bx = if (leftHanded) x + popupW + gap else x - gap - badge
+                val badge = badgeW
+                val bx = (if (leftHanded) x + popupW + gap else x - gap - badge).coerceIn(0f, boxW - badge)
                 val by = (waveY - badge / 2f).coerceIn(0f, max(0f, boxH - badge))
                 Box(
                     Modifier

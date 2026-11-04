@@ -8,17 +8,17 @@ import com.beworkall.nyxo.R
 import com.beworkall.nyxo.data.Prefs
 
 enum class Sfx(val res: Int, val gain: Float) {
-    TAP(R.raw.s_tap, 0.7f),
-    TICK(R.raw.s_tick, 0.45f),
-    OPEN(R.raw.s_open, 0.6f),
-    LAUNCH(R.raw.s_launch, 0.7f),
-    UNLOCK(R.raw.s_unlock, 0.8f),
-    GLASS(R.raw.s_glass, 0.55f),
-    DROP(R.raw.s_drop, 0.7f),
+    TAP(R.raw.s_tap, 0.6f),
+    TICK(R.raw.s_tick, 0.55f),
+    OPEN(R.raw.s_open, 0.5f),
+    LAUNCH(R.raw.s_launch, 0.6f),
+    UNLOCK(R.raw.s_unlock, 0.7f),
+    GLASS(R.raw.s_glass, 0.6f),
+    DROP(R.raw.s_drop, 0.6f),
 }
 
 /**
- * Tiny UI sound engine. Sounds are original, generated for Nyxo.
+ * Small UI sound player.
  * Stays silent when the phone is on silent or vibrate, or when sounds are turned off.
  */
 object Sound {
@@ -27,6 +27,7 @@ object Sound {
     private val ready = HashSet<Int>()
     private var audio: AudioManager? = null
     private var prefs: Prefs? = null
+    private var lastTick = 0L
 
     fun init(context: Context) {
         if (pool != null) return
@@ -54,8 +55,16 @@ object Sound {
         if (audio?.ringerMode != AudioManager.RINGER_MODE_NORMAL) return
         val id = ids[sfx] ?: return
         if (id !in ready) return
+        var rate = 1f
+        if (sfx == Sfx.TICK) {
+            // Fast scrolling: skip ticks closer than 40 ms, and vary the pitch a touch so it sounds like a real detent.
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - lastTick < 40) return
+            lastTick = now
+            rate = 0.96f + (now % 9) * 0.01f
+        }
         val v = (pr.soundVolume.value * sfx.gain).coerceIn(0f, 1f)
-        p.play(id, v, v, 1, 0, 1f)
+        p.play(id, v, v, 1, 0, rate)
     }
 
     /** The launch sound matches the panel style: glass clinks, water drops. */

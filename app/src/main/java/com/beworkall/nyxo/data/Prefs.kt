@@ -13,6 +13,7 @@ class Pref<T>(
     default: T,
     read: (SharedPreferences, String, T) -> T,
     private val write: (SharedPreferences.Editor, String, T) -> Unit,
+    private val durable: Boolean = false,
 ) {
     private val state: MutableState<T> = mutableStateOf(read(sp, key, default))
 
@@ -23,7 +24,8 @@ class Pref<T>(
             state.value = v
             val editor = sp.edit()
             write(editor, key, v)
-            editor.apply()
+            // Setup progress is written straight to disk: Android may restart the home app right after.
+            if (durable) editor.commit() else editor.apply()
         }
 }
 
@@ -34,11 +36,11 @@ class Pref<T>(
 class Prefs private constructor(context: Context) {
     private val sp: SharedPreferences = context.getSharedPreferences("nyxo", Context.MODE_PRIVATE)
 
-    private fun bool(k: String, d: Boolean) = Pref<Boolean>(sp, k, d,
-        { s, key, def -> s.getBoolean(key, def) }, { e, key, v -> e.putBoolean(key, v) })
+    private fun bool(k: String, d: Boolean, durable: Boolean = false) = Pref<Boolean>(sp, k, d,
+        { s, key, def -> s.getBoolean(key, def) }, { e, key, v -> e.putBoolean(key, v) }, durable)
 
-    private fun int(k: String, d: Int) = Pref<Int>(sp, k, d,
-        { s, key, def -> s.getInt(key, def) }, { e, key, v -> e.putInt(key, v) })
+    private fun int(k: String, d: Int, durable: Boolean = false) = Pref<Int>(sp, k, d,
+        { s, key, def -> s.getInt(key, def) }, { e, key, v -> e.putInt(key, v) }, durable)
 
     private fun float(k: String, d: Float) = Pref<Float>(sp, k, d,
         { s, key, def -> s.getFloat(key, def) }, { e, key, v -> e.putFloat(key, v) })
@@ -51,10 +53,10 @@ class Prefs private constructor(context: Context) {
         { e, key, v -> e.putString(key, v.joinToString("\n")) })
 
     // Look
-    val gridLayout = bool("grid_layout_v2", false) // false = one-handed list
-    val leftHanded = bool("left_handed", false)
+    val gridLayout = bool("grid_layout_v2", false, durable = true) // false = one-handed list
+    val leftHanded = bool("left_handed", false, durable = true)
     val columns = int("columns", 4)
-    val radarDots = bool("radar_dots", true)
+    val radarDots = bool("radar_dots", true, durable = true)
     val clock24 = bool("clock_24", DateFormat.is24HourFormat(context))
     val clockStyle = string("clock_style", "thin") // thin, bold, stacked
     val accent = int("accent", 0)
@@ -72,7 +74,7 @@ class Prefs private constructor(context: Context) {
     val motion = bool("motion", true)
 
     // Drawer and search
-    val autoKeyboard = bool("auto_keyboard", true)
+    val autoKeyboard = bool("auto_keyboard_v2", false) // keyboard on swipe up; search gestures always open it
     val searchContacts = bool("search_contacts", false)
 
     // Gestures: "search"/"drawer"/"none", or an app key for left/right
@@ -98,7 +100,8 @@ class Prefs private constructor(context: Context) {
     val radarSeenReady = bool("radar_seen_ready", false)
 
     // First-run setup
-    val onboarded = bool("onboarded_v2", false)
+    val onboarded = bool("onboarded_v2", false, durable = true)
+    val onboardStep = int("onboard_step", 0, durable = true)
 
     companion object {
         @Volatile

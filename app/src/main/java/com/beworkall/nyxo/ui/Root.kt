@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,13 +36,19 @@ fun themeAccent(prefs: Prefs): Color =
 
 /** Loads the current theme's wallpaper at screen size. Shared by the home screen and Nyxo Settings. */
 @Composable
-fun rememberWallpaper(prefs: Prefs, widthPx: Int, heightPx: Int): LoadedWallpaper? {
+fun rememberWallpaper(prefs: Prefs): LoadedWallpaper? {
     val context = LocalContext.current
+    // Always the full physical screen. The window shrinks when the keyboard opens; the wallpaper must not.
+    val (widthPx, heightPx) = remember { screenSize(context) }
     val packId = prefs.themePack.value
     val pack = packById(packId)
     val version = if (packId == "custom") Wallpapers.customFile(context).lastModified() else 0L
-    val wallpaper by produceState<LoadedWallpaper?>(null, packId, widthPx, heightPx, version) {
-        value = Wallpapers.load(context, pack, widthPx, heightPx, version)
+    // Keeps showing the current wallpaper until the next one is ready, so switching themes never flashes black.
+    var wallpaper by remember { mutableStateOf<LoadedWallpaper?>(null) }
+    LaunchedEffect(packId, widthPx, heightPx, version) {
+        if (widthPx <= 0 || heightPx <= 0) return@LaunchedEffect
+        val next = Wallpapers.load(context, pack, widthPx, heightPx, version)
+        if (next != null || pack.res == null && packId != "custom") wallpaper = next
     }
     return wallpaper
 }
@@ -55,7 +63,7 @@ fun NyxoRoot(vm: LauncherViewModel) {
         BackHandler(enabled = true) { vm.back() }
 
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wallpaper = rememberWallpaper(prefs, constraints.maxWidth, constraints.maxHeight)
+            val wallpaper = rememberWallpaper(prefs)
             val style = prefs.panelStyle.value
             val look = remember(style, wallpaper, prefs.motion.value, prefs.tiltLight.value) {
                 Look(
@@ -122,4 +130,18 @@ private fun SlidePanel(visible: Boolean, motion: Boolean, content: @Composable (
             content()
         }
     }
+}
+
+private fun screenSize(context: android.content.Context): Pair<Int, Int> {
+    val wm = context.getSystemService(android.view.WindowManager::class.java)
+    if (wm != null && android.os.Build.VERSION.SDK_INT >= 30) {
+        val b = wm.maximumWindowMetrics.bounds
+        return minOf(b.width(), b.height()) to maxOf(b.width(), b.height())
+    }
+    val dm = android.util.DisplayMetrics()
+    @Suppress("DEPRECATION")
+    wm?.defaultDisplay?.getRealMetrics(dm)
+    val w = if (dm.widthPixels > 0) dm.widthPixels else context.resources.displayMetrics.widthPixels
+    val h = if (dm.heightPixels > 0) dm.heightPixels else context.resources.displayMetrics.heightPixels
+    return minOf(w, h) to maxOf(w, h)
 }

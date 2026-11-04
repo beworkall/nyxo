@@ -113,7 +113,7 @@ fun DrawerScreen(vm: LauncherViewModel) {
     val pullToClose = remember { PullToClose { vm.back() } }
 
     LaunchedEffect(Unit) {
-        if (prefs.autoKeyboard.value || vm.drawerFocusSearch) {
+        if (vm.drawerFocusSearch || prefs.autoKeyboard.value) {
             delay(220)
             runCatching { focus.requestFocus() }
         }
@@ -245,6 +245,7 @@ private fun AlphabetBar(letters: List<Char>, onPick: (Char) -> Unit) {
         if (c != active) {
             active = c
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            Sound.play(Sfx.TICK)
             pick.value(c)
         }
     }

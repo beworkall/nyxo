@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
@@ -142,7 +143,9 @@ fun WallpaperLayer(wallpaper: LoadedWallpaper?, dim: Float, depth: Float) {
             Image(
                 bitmap = wallpaper.sharp,
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                // Pinned to the top at screen width, so it never shifts when the keyboard opens.
+                contentScale = ContentScale.FillWidth,
+                alignment = Alignment.TopCenter,
                 modifier = Modifier.fillMaxSize().graphicsLayer {
                     val k = 1f + 0.06f * depth
                     scaleX = k
@@ -166,7 +169,8 @@ fun PanelBackdrop() {
             Image(
                 bitmap = wp.blurred,
                 contentDescription = null,
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.FillWidth,
+                alignment = Alignment.TopCenter,
                 filterQuality = FilterQuality.Low,
                 modifier = Modifier.fillMaxSize(),
             )
