@@ -6,7 +6,8 @@
 
 **A dark, private Android home screen that shows you what your apps are really doing.**
 
-[![Latest release](https://img.shields.io/github/v/release/beworkall/nyxo?label=latest%20APK&color=9D8CFF&labelColor=0B0E14)](https://github.com/beworkall/nyxo/releases/latest)
+[![Download APK](https://img.shields.io/badge/download-APK-9D8CFF?logo=android&logoColor=white&labelColor=0B0E14)](https://github.com/beworkall/nyxo/releases/latest/download/Nyxo.apk)
+[![Downloads](https://img.shields.io/github/downloads/beworkall/nyxo/total?label=downloads&color=9D8CFF&labelColor=0B0E14)](https://github.com/beworkall/nyxo/releases/latest)
 [![Build](https://github.com/beworkall/nyxo/actions/workflows/build.yml/badge.svg)](https://github.com/beworkall/nyxo/actions/workflows/build.yml)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-9D8CFF.svg?labelColor=0B0E14)](LICENSE)
 [![Internet permission](https://img.shields.io/badge/internet%20permission-NONE-2ECC71?labelColor=0B0E14)](app/src/main/AndroidManifest.xml)
