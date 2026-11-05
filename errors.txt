@@ -1,0 +1,1 @@
+48:w: file:///home/runner/work/nyxo/nyxo/app/src/main/java/com/beworkall/nyxo/ui/Look.kt:257:45 'fun Rect.toAndroidRect(): Rect' is deprecated. Converting Rect to android.graphics.Rect is lossy, and requires rounding. The behavior of toAndroidRect() truncates to an integral Rect, but you should choose the method of rounding most suitable for your use case.
